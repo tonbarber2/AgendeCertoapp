@@ -60,7 +60,25 @@ const App: React.FC = () => {
 
   // --- Initialization & Data Loading ---
 
-  // Load Data on Startup (Public or Private)
+  // Effect 1: Restore user session from localStorage on initial app load
+  useEffect(() => {
+    const restoreSession = async () => {
+      const userId = localStorage.getItem('ac_logged_in_user_id');
+      if (userId) {
+        const user = await db.getUserById(userId);
+        if (user) {
+          // This state change triggers Effect 2 to load this user's data
+          setCurrentUser(user);
+        } else {
+          // Clean up if the user ID is invalid or user was deleted
+          localStorage.removeItem('ac_logged_in_user_id');
+        }
+      }
+    };
+    restoreSession();
+  }, []); // Empty array ensures this runs only once on mount
+
+  // Effect 2: Load data based on the current user (or public view if no user)
   useEffect(() => {
     const initData = async () => {
         try {
@@ -76,12 +94,13 @@ const App: React.FC = () => {
             }
 
             if (currentUser) {
-                // Check Subscription Status
+                // Check Subscription Status and set appropriate view
                 if (currentUser.subscription?.status === 'expired') {
                     setView('SUBSCRIPTION');
                     setIsDataLoaded(true);
                     return; // Stop data loading if expired
                 }
+                setView('ADMIN'); // Default to admin view if logged in and active
                 data = await db.loadData(currentUser.id);
             } else {
                 // If visitor, load public data based on URL param or default
@@ -102,8 +121,8 @@ const App: React.FC = () => {
                 setClientPlans(data.clientPlans || []);
                 setCategories([]); 
 
-                // Handle direct professional link
-                if (professionalIdFromUrl && data.professionals.some((p: Professional) => p.id === professionalIdFromUrl)) {
+                // Handle direct professional link if not logged in
+                if (!currentUser && professionalIdFromUrl && data.professionals.some((p: Professional) => p.id === professionalIdFromUrl)) {
                     setPreSelectedProId(professionalIdFromUrl);
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -123,6 +142,7 @@ const App: React.FC = () => {
 
   // Persist Data Changes (Sync with Server)
   useEffect(() => {
+    // We prevent saving data until initial load is complete
     if (currentUser && isDataLoaded && currentUser.subscription?.status === 'active') {
         db.saveData(currentUser.id, {
             profile: businessProfile,
@@ -216,17 +236,15 @@ const App: React.FC = () => {
   };
 
   const handleLoginSuccess = (user: AdminUser) => {
-      setCurrentUser(user);
-      setIsDataLoaded(false); // Trigger data reload for this user
+      localStorage.setItem('ac_logged_in_user_id', user.id);
+      setCurrentUser(user); // Triggers data reload via useEffect
+      setIsDataLoaded(false); // Force reload spinner
       
-      if (user.subscription?.status === 'expired') {
-          setView('SUBSCRIPTION');
-      } else {
-          setView('ADMIN');
-      }
+      // The main data loading useEffect will handle view changes
   };
 
   const handleLogout = () => {
+      localStorage.removeItem('ac_logged_in_user_id');
       setCurrentUser(null);
       setView('LANDING');
       setIsDataLoaded(false); // Trigger reload of public data
@@ -234,12 +252,11 @@ const App: React.FC = () => {
 
   const handleSubscriptionUpdate = (updatedUser: AdminUser) => {
       setCurrentUser(updatedUser);
-      setView('ADMIN');
-      setIsDataLoaded(false); // Trigger reload to ensure data access
+      // The main data loading useEffect will re-evaluate and set the correct view
   };
 
   const renderView = () => {
-    if (!isDataLoaded && view !== 'AUTH' && view !== 'LANDING') {
+    if (!isDataLoaded) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>

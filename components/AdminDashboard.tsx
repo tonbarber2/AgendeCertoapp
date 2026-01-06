@@ -259,7 +259,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleCopyLink = () => {
-    const url = `${window.location.origin}?store=${currentUser.id}`;
+    // Usa a URL salva com um fallback para contas mais antigas
+    const url = businessProfile.schedulingUrl || `${window.location.origin}?store=${currentUser.id}`;
     navigator.clipboard.writeText(url).then(() => {
         setLinkCopied(true);
         setTimeout(() => setLinkCopied(false), 2000); // Reset after 2 seconds
@@ -267,7 +268,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleCopyProfessionalLink = (profId: string) => {
-    const url = `${window.location.origin}?store=${currentUser.id}&professionalId=${profId}`;
+    const baseUrl = businessProfile.schedulingUrl || `${window.location.origin}?store=${currentUser.id}`;
+    // Remove o & de professionalId se já existir na baseUrl para evitar duplicatas
+    const cleanBaseUrl = baseUrl.split('&professionalId=')[0];
+    const url = `${cleanBaseUrl}&professionalId=${profId}`;
     navigator.clipboard.writeText(url).then(() => {
         setCopiedProfId(profId);
         setTimeout(() => setCopiedProfId(null), 2000); // Reset after 2 seconds

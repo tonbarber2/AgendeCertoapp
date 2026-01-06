@@ -1,4 +1,5 @@
 
+
 export interface Service {
   id: string;
   name: string;
@@ -115,6 +116,7 @@ export interface BusinessProfile {
   pixKey: string;
   whatsapp: string; // WhatsApp para comprovantes
   address?: string; 
+  schedulingUrl?: string; // URL de agendamento exclusivo
   openingHours: BusinessHours;
   
   // Notifications

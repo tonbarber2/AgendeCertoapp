@@ -17,6 +17,7 @@ const DEFAULT_PROFILE: BusinessProfile = {
   pixKey: '00.000.000/0001-00',
   whatsapp: '+55',
   address: '',
+  schedulingUrl: '',
   openingHours: DEFAULT_BUSINESS_HOURS,
   notificationSound: true,
   selectedSound: 'Padrão (Digital)',
@@ -108,9 +109,17 @@ export const db = {
     users.push({ ...newUser, password }); 
     localStorage.setItem('ac_users', JSON.stringify(users));
 
+    // Gera e salva o link exclusivo no momento do cadastro
+    const schedulingUrl = `${window.location.origin}?store=${newUser.id}`;
+
     // Inicializa dados
     await this.saveData(newUser.id, {
-      profile: { ...DEFAULT_PROFILE, name: businessName, email: email },
+      profile: { 
+        ...DEFAULT_PROFILE, 
+        name: businessName, 
+        email: email,
+        schedulingUrl: schedulingUrl
+      },
       appointments: [],
       professionals: [...DEFAULT_PROFESSIONALS],
       services: [...DEFAULT_SERVICES],
@@ -201,6 +210,30 @@ export const db = {
 
     const { password: _, ...safeUser } = user;
     return safeUser;
+  },
+  
+  async getUserById(userId: string): Promise<AdminUser | null> {
+    if (this.useRemote()) {
+      // A lógica da API para buscar um usuário por ID iria aqui
+    }
+
+    // Lógica Local
+    const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
+    const user = users.find((u: any) => u.id === userId);
+
+    if (user) {
+      // Re-verifica a expiração da assinatura sempre que o usuário é carregado
+      if (user.subscription && user.subscription.plan !== 'lifetime' && user.subscription.expiresAt) {
+          const expiryDate = new Date(user.subscription.expiresAt);
+          if (new Date() > expiryDate) {
+              user.subscription.status = 'expired';
+          }
+      }
+      const { password: _, ...safeUser } = user;
+      return safeUser;
+    }
+    
+    return null;
   },
 
   async requestPasswordReset(email: string): Promise<string> {
