@@ -108,6 +108,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Notifications State
   const [showNotifications, setShowNotifications] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Sync local form when external profile changes
   useEffect(() => {
@@ -258,7 +259,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}?store=${currentUser.id}`;
-    navigator.clipboard.writeText(url).then(() => alert('Link exclusivo copiado!'));
+    navigator.clipboard.writeText(url).then(() => {
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000); // Reset after 2 seconds
+    });
   };
 
   const handleSaveProfileData = () => {
@@ -451,9 +455,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="relative z-10">
                       <h3 className="font-bold text-lg mb-1">Divulgue seu Negócio</h3>
                       <p className="text-sm text-gray-300 mb-4 max-w-[220px]">Compartilhe o link de agendamento com seus clientes.</p>
-                      <button onClick={handleCopyLink} className="w-full bg-primary text-white px-3 py-3 rounded-lg text-sm font-bold hover:bg-primary-hover transition-colors flex items-center justify-center gap-2 shadow-md">
-                          <LinkIcon size={18} /> COPIAR LINK
-                      </button>
+                      <button onClick={handleCopyLink} className={`w-full px-3 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md ${linkCopied ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
+                         {linkCopied ? (
+                             <>
+                                 <Check size={18} /> COPIADO!
+                             </>
+                         ) : (
+                             <>
+                                 <LinkIcon size={18} /> COPIAR LINK
+                             </>
+                         )}
+                     </button>
                   </div>
                   <div className="absolute right-[-20px] bottom-[-20px] opacity-20 rotate-12">
                       <QrCode size={140} />
@@ -524,8 +536,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex justify-between items-center mb-4 relative z-20">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">Agenda</h2>
                 <div className="flex items-center gap-3">
-                    <button onClick={handleCopyLink} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg flex items-center gap-2 text-xs font-bold transition-all hover:bg-blue-100 dark:hover:bg-blue-900/40">
-                        <LinkIcon size={16} /> LINK
+                    <button onClick={handleCopyLink} className={`p-2 rounded-lg flex items-center gap-2 text-xs font-bold transition-all ${linkCopied ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'}`}>
+                        {linkCopied ? <Check size={16} /> : <LinkIcon size={16} />}
+                        {linkCopied ? 'COPIADO' : 'LINK'}
                     </button>
                 </div>
             </div>
