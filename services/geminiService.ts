@@ -1,28 +1,44 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { SERVICES, PROFESSIONALS } from '../constants';
+import { BusinessProfile, Professional, Service } from "../types";
 
-// The API key is loaded from the environment variable `process.env.API_KEY`.
-// This is configured in vite.config.ts to be available in the browser.
+// A chave da API é carregada da variável de ambiente `process.env.API_KEY`.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const SYSTEM_INSTRUCTION = `
-Você é a assistente virtual inteligente do "Agende Certo", uma barbearia premium.
+const createSystemInstruction = (
+    profile: BusinessProfile,
+    services: Service[],
+    professionals: Professional[]
+): string => {
+  const businessName = profile.name || "Agende Certo";
+  const servicesList = services.map(s => `${s.name} (R$ ${s.price.toFixed(2)})`).join(', ') || "Nenhum serviço cadastrado.";
+  const professionalsList = professionals.map(p => `${p.name} (${p.role})`).join(', ') || "Nenhum profissional cadastrado.";
+
+  return `
+Você é a assistente virtual inteligente do "${businessName}", uma barbearia premium.
 Seu objetivo é ajudar os clientes a escolherem o melhor serviço e profissional, ou tirar dúvidas sobre o agendamento.
 
 Contexto da Barbearia:
-- Serviços Disponíveis: ${SERVICES.map(s => `${s.name} (R$ ${s.price})`).join(', ')}.
-- Profissionais: ${PROFESSIONALS.map(p => `${p.name} (${p.role})`).join(', ')}.
+- Nome do Negócio: ${businessName}
+- Serviços Disponíveis: ${servicesList}.
+- Profissionais: ${professionalsList}.
 
 Diretrizes:
 - Seja curta, educada e direta.
 - Use emojis ocasionalmente.
 - Se o usuário perguntar sobre preços, liste apenas os relevantes.
-- Se o usuário pedir uma recomendação, pergunte o estilo dele ou sugira o 'Combo' para melhor custo-benefício.
+- Se o usuário pedir uma recomendação, pergunte o estilo dele ou sugira o serviço de maior valor como uma experiência premium.
 - Responda sempre em Português do Brasil.
 `;
+};
 
-export const sendMessageToGemini = async (history: {role: string, parts: {text: string}[]}[], message: string): Promise<string> => {
+export const sendMessageToGemini = async (
+  history: {role: string, parts: {text: string}[]}[], 
+  message: string,
+  businessProfile: BusinessProfile,
+  services: Service[],
+  professionals: Professional[]
+): Promise<string> => {
   try {
     const model = 'gemini-3-flash-preview';
     
@@ -37,11 +53,13 @@ export const sendMessageToGemini = async (history: {role: string, parts: {text: 
       }
     ];
 
+    const systemInstruction = createSystemInstruction(businessProfile, services, professionals);
+
     const response = await ai.models.generateContent({
       model,
       contents,
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+        systemInstruction: systemInstruction,
       }
     });
 

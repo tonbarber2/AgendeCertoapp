@@ -349,7 +349,13 @@ const App: React.FC = () => {
   return (
     <>
       {renderView()}
-      {view !== 'ADMIN' && view !== 'AUTH' && view !== 'SUBSCRIPTION' && <AIReceptionist />}
+      {view !== 'ADMIN' && view !== 'AUTH' && view !== 'SUBSCRIPTION' && (
+        <AIReceptionist 
+          businessProfile={businessProfile}
+          services={services}
+          professionals={professionals}
+        />
+      )}
     </>
   );
 };

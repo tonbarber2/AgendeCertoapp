@@ -1,13 +1,19 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { sendMessageToGemini } from '../services/geminiService';
-import { ChatMessage } from '../types';
+import { ChatMessage, BusinessProfile, Service, Professional } from '../types';
 import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
 
-export const AIReceptionist: React.FC = () => {
+interface AIReceptionistProps {
+  businessProfile: BusinessProfile;
+  services: Service[];
+  professionals: Professional[];
+}
+
+export const AIReceptionist: React.FC<AIReceptionistProps> = ({ businessProfile, services, professionals }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 'init', role: 'model', text: 'Olá! Sou a assistente virtual da Agende Certo. Como posso te ajudar hoje?' }
+    { id: 'init', role: 'model', text: `Olá! Sou a assistente virtual do ${businessProfile.name || 'Agende Certo'}. Como posso te ajudar hoje?` }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,7 +46,7 @@ export const AIReceptionist: React.FC = () => {
       parts: [{ text: m.text }]
     }));
 
-    const responseText = await sendMessageToGemini(history, userMsg.text);
+    const responseText = await sendMessageToGemini(history, userMsg.text, businessProfile, services, professionals);
 
     const aiMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
@@ -70,7 +76,7 @@ export const AIReceptionist: React.FC = () => {
       <div className="bg-primary p-4 flex justify-between items-center text-white shadow-md relative z-10">
         <div className="flex items-center gap-2">
           <Bot size={20} />
-          <h3 className="font-semibold text-shadow-sm">Assistente Agende Certo</h3>
+          <h3 className="font-semibold text-shadow-sm">Assistente {businessProfile.name || 'Agende Certo'}</h3>
         </div>
         <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded transition-colors">
           <X size={20} />
