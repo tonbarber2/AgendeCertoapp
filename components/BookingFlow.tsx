@@ -90,25 +90,26 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   };
 
   const handleNext = () => {
-    if (isStepValid()) {
-      if (step === BookingStep.PAYMENT) {
-         // Finalize booking logic
-         const newAppointment: Appointment = {
-            id: Date.now().toString(),
-            client: userDetails.name,
-            service: selectedService!.name,
-            time: selectedTime!,
-            date: selectedDate.displayDate,
-            status: 'pendente', // Always pending until pro confirms
-            phone: userDetails.phone,
-            professional: selectedProfessional!.name // Save the professional name
-         };
+    if (!isStepValid()) return;
 
-         // Generate WhatsApp Message for Admin
-         const adminPhoneClean = adminPhone?.replace(/\D/g, '') || '';
-         const amountPaid = paymentType === 'deposit' ? selectedService?.deposit : selectedService?.price;
-         
-         const message = `Olá! Gostaria de confirmar meu agendamento:
+    if (step === BookingStep.PAYMENT) {
+      // Finalize booking logic
+      const newAppointment: Appointment = {
+          id: Date.now().toString(),
+          client: userDetails.name,
+          service: selectedService!.name,
+          time: selectedTime!,
+          date: selectedDate.displayDate,
+          status: 'pendente', // Always pending until pro confirms
+          phone: userDetails.phone,
+          professional: selectedProfessional!.name // Save the professional name
+      };
+
+      // Generate WhatsApp Message for Admin
+      const adminPhoneClean = adminPhone?.replace(/\D/g, '') || '';
+      const amountPaid = paymentType === 'deposit' ? selectedService?.deposit : selectedService?.price;
+      
+      const message = `Olá! Gostaria de confirmar meu agendamento:
 📅 *Data:* ${selectedDate.displayDate}
 ⏰ *Horário:* ${selectedTime}
 ✂️ *Serviço:* ${selectedService!.name}
@@ -118,22 +119,39 @@ Nome: ${userDetails.name}
 
 *Segue meu comprovante de pagamento em anexo!* 👇`;
 
-         // Open WhatsApp
-         const whatsappUrl = `https://wa.me/${adminPhoneClean}?text=${encodeURIComponent(message)}`;
-         window.open(whatsappUrl, '_blank');
+      // Open WhatsApp
+      const whatsappUrl = `https://wa.me/55${adminPhoneClean}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
 
-         onConfirmBooking(newAppointment);
-      }
-      setStep(prev => prev + 1);
+      onConfirmBooking(newAppointment);
+      setStep(BookingStep.CONFIRMATION);
       window.scrollTo(0, 0);
+      return;
     }
+
+    let nextStep = step + 1;
+    // If we are at the service step AND a professional is already pre-selected from the link,
+    // skip the professional selection step.
+    if (step === BookingStep.SERVICE && selectedProfessional) {
+        nextStep = BookingStep.DATETIME;
+    }
+
+    setStep(nextStep as BookingStep);
+    window.scrollTo(0, 0);
   };
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep(prev => prev - 1);
+    let prevStep = step - 1;
+    // If we are at the DATETIME step and came from a pre-selected professional link,
+    // skip back to the SERVICE step.
+    if (step === BookingStep.DATETIME && preSelectedProId) {
+        prevStep = BookingStep.SERVICE;
+    }
+
+    if (prevStep >= 1) {
+        setStep(prevStep as BookingStep);
     } else {
-      onBackToLanding();
+        onBackToLanding();
     }
   };
 
@@ -155,27 +173,17 @@ Nome: ${userDetails.name}
   const getAvailableSlots = () => {
     return TIME_SLOTS.filter(time => {
       const isTaken = appointments.some(apt => {
-        // Must match date
         if (apt.date !== selectedDate.displayDate) return false;
-        
-        // Must match time
         if (apt.time !== time) return false;
-
-        // If it's cancelled, the slot is free
         if (apt.status === 'cancelado') return false;
 
-        // Logic:
-        // If the appointment has a professional assigned, it only blocks THAT professional.
-        // If I (current user) selected "Professional A", I only care if "Professional A" is busy.
         if (apt.professional && selectedProfessional) {
             return apt.professional === selectedProfessional.name;
         }
+        
+        // If no professional is assigned to the appointment, it blocks the slot for everyone
+        if (!apt.professional) return true;
 
-        // If appointment has no professional (legacy data) or user hasn't selected one (shouldn't happen in this flow),
-        // we might assume it blocks everyone or no one. 
-        // For safety/strictness: if no professional is recorded on the appointment, assume it blocks the slot globally?
-        // Or assume it matches if names are undefined? 
-        // Let's stick to strict name matching if available.
         return false;
       });
 
@@ -194,19 +202,21 @@ Nome: ${userDetails.name}
       { num: 4, label: 'Dados' },
       { num: 5, label: 'Pagamento' },
     ];
-
+    
+    // Filter out professional step if pre-selected
+    const visibleSteps = preSelectedProId ? steps.filter(s => s.num !== 2) : steps;
+    const currentStepAdjusted = preSelectedProId && step > 2 ? step - 1 : step;
+    
     return (
       <div className="w-full bg-white dark:bg-[#0a0a0a] pt-6 pb-4 px-4 shadow-sm mb-6 sticky top-0 z-10 transition-colors border-b border-transparent dark:border-white/5">
         <div className="flex justify-between items-center max-w-lg mx-auto relative">
-          {/* Progress Bar Background */}
           <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200 dark:bg-white/10 -z-10 rounded-full"></div>
-          {/* Active Progress */}
           <div 
             className="absolute top-1/2 left-0 h-1 bg-primary -z-10 rounded-full transition-all duration-300 ease-out"
-            style={{ width: `${((step - 1) / (steps.length)) * 100}%` }}
+            style={{ width: `${((currentStepAdjusted - 1) / (visibleSteps.length -1)) * 100}%` }}
           ></div>
 
-          {steps.map((s) => (
+          {visibleSteps.map((s) => (
             <div key={s.num} className="flex flex-col items-center">
               <div 
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-300 border-2 ${
@@ -215,7 +225,7 @@ Nome: ${userDetails.name}
                     : 'bg-white dark:bg-[#0a0a0a] border-gray-300 dark:border-white/20 text-gray-400'
                 }`}
               >
-                {step > s.num ? <CheckCircle size={14} /> : s.num}
+                {step > s.num ? <CheckCircle size={14} /> : (preSelectedProId && s.num > 2 ? s.num - 1 : s.num)}
               </div>
               <span className={`text-[10px] mt-1 font-medium ${step >= s.num ? 'text-primary' : 'text-gray-400'}`}>
                 {s.label}

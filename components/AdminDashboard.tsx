@@ -109,6 +109,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Notifications State
   const [showNotifications, setShowNotifications] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [copiedProfId, setCopiedProfId] = useState<string | null>(null);
 
   // Sync local form when external profile changes
   useEffect(() => {
@@ -265,6 +266,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
+  const handleCopyProfessionalLink = (profId: string) => {
+    const url = `${window.location.origin}?store=${currentUser.id}&professionalId=${profId}`;
+    navigator.clipboard.writeText(url).then(() => {
+        setCopiedProfId(profId);
+        setTimeout(() => setCopiedProfId(null), 2000); // Reset after 2 seconds
+    });
+  };
+
   const handleSaveProfileData = () => {
     onUpdateProfile(profileForm);
     // Removed alert for cleaner auto-save experience
@@ -285,7 +294,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleDeleteService = (id: string) => {
     if (confirm('Tem certeza que deseja excluir este serviço?')) {
       setServices(prev => prev.filter(s => s.id !== id));
-      setEditingService(null);
+      if (editingService?.id === id) {
+        setEditingService(null);
+      }
     }
   };
 
@@ -1118,7 +1129,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {editingService && (
                     <div className="bg-white dark:bg-[#0a0a0a] p-4 rounded-xl shadow-lg border-2 border-primary mb-6 animate-fade-in-up">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-primary">Novo Serviço</h3>
+                            <h3 className="font-bold text-primary">{services.find(s => s.id === editingService.id) ? 'Editar Serviço' : 'Novo Serviço'}</h3>
                             <button onClick={() => setEditingService(null)}><X size={20} className="text-gray-400"/></button>
                         </div>
                         <div className="space-y-3">
@@ -1131,12 +1142,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <input type="text" placeholder="Nome do Serviço" value={editingService.name} onChange={e => setEditingService({...editingService, name: e.target.value})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
                             <textarea placeholder="Descrição" value={editingService.description} onChange={e => setEditingService({...editingService, description: e.target.value})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
                             <div className="flex gap-2">
-                                <input type="number" placeholder="Preço (R$)" value={editingService.price} onChange={e => setEditingService({...editingService, price: parseFloat(e.target.value)})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
-                                <input type="number" placeholder="Duração (min)" value={editingService.duration} onChange={e => setEditingService({...editingService, duration: parseInt(e.target.value)})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
+                                <input type="number" placeholder="Preço (R$)" value={editingService.price} onChange={e => setEditingService({...editingService, price: parseFloat(e.target.value) || 0})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
+                                <input type="number" placeholder="Duração (min)" value={editingService.duration} onChange={e => setEditingService({...editingService, duration: parseInt(e.target.value) || 0})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-500 mb-1 block">Sinal / Depósito (R$)</label>
-                                <input type="number" placeholder="Valor do Sinal" value={editingService.deposit || 0} onChange={e => setEditingService({...editingService, deposit: parseFloat(e.target.value)})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
+                                <input type="number" placeholder="Valor do Sinal" value={editingService.deposit || 0} onChange={e => setEditingService({...editingService, deposit: parseFloat(e.target.value) || 0})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
                             </div>
                             <div className="flex gap-2">
                                 <button 
@@ -1154,16 +1165,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 <div className="space-y-3">
                     {services.map(service => (
-                        <div key={service.id} className="bg-white dark:bg-[#0a0a0a] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 flex gap-4">
-                            <img src={service.image} className="w-16 h-16 rounded-lg object-cover bg-gray-100" />
-                            <div className="flex-1">
-                                <h3 className="font-bold text-gray-900 dark:text-white">{service.name}</h3>
-                                <p className="text-xs text-gray-500 mb-1">{service.duration} min • R$ {service.price.toFixed(2)}</p>
-                                {service.deposit ? <p className="text-xs text-primary font-semibold">Sinal: R$ {service.deposit.toFixed(2)}</p> : null}
-                                <div className="flex gap-2 mt-2">
-                                    <button onClick={() => setEditingService(service)} className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-2 py-1 rounded">Editar</button>
-                                    <button onClick={() => handleDeleteService(service.id)} className="text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-2 py-1 rounded">Excluir</button>
+                        <div key={service.id} className="bg-white dark:bg-[#0a0a0a] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <img src={service.image} className="w-16 h-16 rounded-lg object-cover bg-gray-100" />
+                                <div>
+                                    <h3 className="font-bold text-gray-900 dark:text-white">{service.name}</h3>
+                                    <p className="text-xs text-gray-500">{service.duration} min • R$ {service.price.toFixed(2)}</p>
+                                    {service.deposit ? <p className="text-xs text-primary font-semibold mt-1">Sinal: R$ {service.deposit.toFixed(2)}</p> : null}
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setEditingService(service)} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"><Edit2 size={16}/></button>
+                                <button onClick={() => handleDeleteService(service.id)} className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"><Trash2 size={16}/></button>
                             </div>
                         </div>
                     ))}
@@ -1235,7 +1248,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleCopyProfessionalLink(pro.id)}
+                                    title="Copiar link de agendamento do profissional"
+                                    className={`p-2 rounded-lg transition-colors ${copiedProfId === pro.id ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-gray-100 dark:bg-white/5 text-gray-500 hover:text-primary'}`}
+                                >
+                                    {copiedProfId === pro.id ? <Check size={16} /> : <LinkIcon size={16}/>}
+                                </button>
                                 <button onClick={() => setEditingProfessional(pro)} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg"><Edit2 size={16}/></button>
                                 <button onClick={() => handleDeleteProfessional(pro.id)} className="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg"><Trash2 size={16}/></button>
                             </div>

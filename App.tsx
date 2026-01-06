@@ -69,6 +69,7 @@ const App: React.FC = () => {
             // 1. Check for Store ID in URL (Client View)
             const params = new URLSearchParams(window.location.search);
             const storeIdFromUrl = params.get('store');
+            const professionalIdFromUrl = params.get('professionalId');
             
             if (storeIdFromUrl) {
                 setPublicStoreId(storeIdFromUrl);
@@ -76,7 +77,6 @@ const App: React.FC = () => {
 
             if (currentUser) {
                 // Check Subscription Status
-                // Usando optional chaining para segurança se o dado estiver incompleto
                 if (currentUser.subscription?.status === 'expired') {
                     setView('SUBSCRIPTION');
                     setIsDataLoaded(true);
@@ -89,8 +89,6 @@ const App: React.FC = () => {
             }
 
             if (data) {
-                // Migration/Fallback logic if openingHours is old format (string) in DB
-                // This is a safety check in case we load old data
                 let safeProfile = data.profile;
                 if (typeof safeProfile.openingHours === 'string') {
                    safeProfile.openingHours = DEFAULT_BUSINESS_HOURS;
@@ -102,12 +100,19 @@ const App: React.FC = () => {
                 setServices(data.services || []);
                 setProducts(data.products || []);
                 setClientPlans(data.clientPlans || []);
-                // In a real app, categories would come from DB. Initializing empty for now or mock if needed.
                 setCategories([]); 
+
+                // Handle direct professional link
+                if (professionalIdFromUrl && data.professionals.some((p: Professional) => p.id === professionalIdFromUrl)) {
+                    setPreSelectedProId(professionalIdFromUrl);
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    setBookingDate(tomorrow);
+                    setView('BOOKING_FLOW');
+                }
             }
         } catch (error) {
             console.error("Falha ao carregar dados:", error);
-            // Em caso de erro crítico, não travamos o app, carregamos o estado atual (defaults)
         } finally {
             setIsDataLoaded(true);
         }
@@ -129,20 +134,6 @@ const App: React.FC = () => {
         });
     }
   }, [businessProfile, appointments, professionals, services, products, clientPlans, currentUser, isDataLoaded]);
-
-  // Check URL params for direct booking link (Professional Deep Link)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const professionalId = params.get('professionalId');
-    
-    if (professionalId) {
-      setPreSelectedProId(professionalId);
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      setBookingDate(tomorrow);
-      setView('BOOKING_FLOW');
-    }
-  }, []);
 
   // Apply Theme
   useEffect(() => {
@@ -191,15 +182,9 @@ const App: React.FC = () => {
     if (!currentUser) {
         const targetStoreId = publicStoreId;
         
-        // Reload current data first to ensure we don't overwrite concurrent changes (simplified)
         db.loadPublicData(targetStoreId).then(async (publicData) => {
-             // Find who owns this data
-             // If storeId is known, we save to it. If not, we fall back to logic in DB (last user)
-             // For robustness in this demo, if we have the ID from URL, we use it.
-             
              let ownerId = targetStoreId;
              
-             // Fallback for "last user" demo scenario if no URL param
              if (!ownerId) {
                  const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
                  if(users.length > 0) {
@@ -210,7 +195,7 @@ const App: React.FC = () => {
              if (ownerId) {
                  const updatedData = {
                      ...publicData,
-                     appointments: [...publicData.appointments, newAppointment]
+                     appointments: [...(publicData.appointments || []), newAppointment]
                  };
                  await db.saveData(ownerId, updatedData);
              }
@@ -224,10 +209,8 @@ const App: React.FC = () => {
 
   const handleEnterAdmin = () => {
       if (currentUser) {
-          // If already logged in, go straight to Dashboard
           setView('ADMIN');
       } else {
-          // Otherwise, go to Auth
           setView('AUTH');
       }
   };
@@ -284,9 +267,7 @@ const App: React.FC = () => {
               />
           );
       case 'ADMIN':
-        // Protect Route
         if (!currentUser) {
-            // Should redirect if somehow reached here without user
             setView('AUTH');
             return null;
         }
