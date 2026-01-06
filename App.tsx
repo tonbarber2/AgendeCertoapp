@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ViewState, Theme, BusinessProfile, Appointment, Professional, Service, AdminUser, Product, ClientPlan, ServiceCategory } from './types';
+import { Analytics } from '@vercel/analytics/react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LandingPage } from './components/LandingPage';
 import { BookingFlow } from './components/BookingFlow';
@@ -350,6 +351,7 @@ const App: React.FC = () => {
     <>
       {renderView()}
       {view !== 'ADMIN' && view !== 'AUTH' && view !== 'SUBSCRIPTION' && <AIReceptionist />}
+      <Analytics />
     </>
   );
 };
