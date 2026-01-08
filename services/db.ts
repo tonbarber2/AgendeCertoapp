@@ -1,8 +1,9 @@
+
 import { AdminUser, Appointment, BusinessProfile, Professional, Service, PlanType, Product, ClientPlan } from "../types";
 import { SERVICES as DEFAULT_SERVICES, PROFESSIONALS as DEFAULT_PROFESSIONALS, DEFAULT_BUSINESS_HOURS } from "../constants";
 import { firebaseConfig } from './firebaseConfig';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
 
 // Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
@@ -53,6 +54,10 @@ export const db = {
 
   async register(name: string, email: string, password: string, businessName: string): Promise<AdminUser> {
     await this.delay(800);
+
+    if (email.toLowerCase() === 'ton222418@gmail.com') {
+      throw new Error("Este e-mail não pode ser utilizado. Por favor, escolha outro.");
+    }
     
     // Verifica se o email já existe
     const usersRef = collection(firestore, "users");
@@ -62,7 +67,6 @@ export const db = {
       throw new Error("E-mail já cadastrado.");
     }
     
-    const isLifetimeUser = email.toLowerCase() === 'ton222418@gmail.com';
     const now = new Date();
     const trialExpiration = new Date(now);
     trialExpiration.setDate(now.getDate() + 7);
@@ -75,10 +79,10 @@ export const db = {
       email,
       businessName,
       subscription: {
-        plan: isLifetimeUser ? 'lifetime' : 'trial',
+        plan: 'trial',
         status: 'active',
         startDate: now.toISOString(),
-        expiresAt: isLifetimeUser ? null : trialExpiration.toISOString()
+        expiresAt: trialExpiration.toISOString()
       }
     };
     
@@ -107,31 +111,32 @@ export const db = {
   async login(email: string, password: string): Promise<AdminUser> {
     await this.delay(800);
     
+    if (email.toLowerCase() === 'ton222418@gmail.com') {
+        throw new Error("Credenciais inválidas.");
+    }
+
     const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", email), where("password", "==", password));
+    const q = query(usersRef, where("email", "==", email));
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
       throw new Error("Credenciais inválidas.");
     }
 
-    let user = querySnapshot.docs[0].data() as AdminUser & { password?: string };
+    const userDoc = querySnapshot.docs[0];
+    let user = userDoc.data() as AdminUser & { password?: string };
+
+    if (user.password !== password) {
+      throw new Error("Credenciais inválidas.");
+    }
     
     let needsUpdate = false;
-
     if (!user.subscription) {
         const now = new Date();
         const trialExpiration = new Date(now);
         trialExpiration.setDate(now.getDate() + 7);
         user.subscription = { plan: 'trial', status: 'active', startDate: now.toISOString(), expiresAt: trialExpiration.toISOString() };
         needsUpdate = true;
-    }
-
-    if (user.email.toLowerCase() === 'ton222418@gmail.com') {
-        if (user.subscription.plan !== 'lifetime' || user.subscription.status !== 'active') {
-            user.subscription = { plan: 'lifetime', status: 'active', startDate: new Date().toISOString(), expiresAt: null };
-            needsUpdate = true;
-        }
     }
 
     if (user.subscription.plan !== 'lifetime' && user.subscription.expiresAt) {
@@ -156,12 +161,11 @@ export const db = {
 
     if (userDoc.exists()) {
       const user = userDoc.data() as AdminUser & { password?: string };
-      // Re-valida a assinatura ao carregar o usuário
       if (user.subscription && user.subscription.plan !== 'lifetime' && user.subscription.expiresAt) {
           const expiryDate = new Date(user.subscription.expiresAt);
           if (new Date() > expiryDate && user.subscription.status !== 'expired') {
               user.subscription.status = 'expired';
-              await setDoc(userDocRef, user); // Atualiza no banco
+              await setDoc(userDocRef, user);
           }
       }
       delete user.password;
@@ -289,32 +293,32 @@ export const db = {
   },
 
   async loadPublicData(storeId?: string | null): Promise<AppData> {
+    if (!storeId) {
+      // Se não houver storeId, retorna dados padrão para evitar erros.
+      return {
+        profile: DEFAULT_PROFILE,
+        appointments: [],
+        professionals: [],
+        services: [],
+        products: [],
+        clientPlans: []
+      };
+    }
+    
+    // Carrega os dados da loja pública com base no storeId
     const usersRef = collection(firestore, "users");
-    let targetUser: AdminUser | null = null;
+    const userDoc = await getDoc(doc(usersRef, storeId));
     
-    if (storeId) {
-      const userDoc = await getDoc(doc(usersRef, storeId));
-      if (userDoc.exists()) targetUser = userDoc.data() as AdminUser;
-    } else {
-        // Fallback: Tenta carregar o admin principal
-        const adminEmail = 'ton222418@gmail.com';
-        const q = query(usersRef, where("email", "==", adminEmail));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-            targetUser = querySnapshot.docs[0].data() as AdminUser;
-        }
+    if (userDoc.exists()) {
+      return this.loadData(userDoc.id);
     }
     
-    if (targetUser) {
-      return this.loadData(targetUser.id);
-    }
-    
-    // Final fallback
+    // Retorna um estado vazio e seguro se a loja não for encontrada
     return {
-      profile: DEFAULT_PROFILE,
+      profile: { ...DEFAULT_PROFILE, name: 'Loja não encontrada' },
       appointments: [],
-      professionals: DEFAULT_PROFESSIONALS,
-      services: DEFAULT_SERVICES,
+      professionals: [],
+      services: [],
       products: [],
       clientPlans: []
     };
@@ -325,63 +329,56 @@ export const db = {
   }
 };
 
-// --- SEED ADMIN USER ---
-// Garante que o usuário administrador exista no Firestore.
-(async function seedAdminUser() {
-  const ADMIN_EMAIL = 'ton222418@gmail.com';
-  const ADMIN_ID = 'admin_user_ton_01'; // Fixed ID
-  const ADMIN_PASSWORD = '2222';
+// --- Função para deletar usuário (chamada uma vez para limpar) ---
+(async function deleteLegacyAdmin() {
+    const ADMIN_ID = 'admin_user_ton_01';
+    const ADMIN_EMAIL = 'ton222418@gmail.com';
 
-  try {
-      const adminDocRef = doc(firestore, "users", ADMIN_ID);
-      const adminDoc = await getDoc(adminDocRef);
+    try {
+        const userDocRef = doc(firestore, "users", ADMIN_ID);
+        const userDoc = await getDoc(userDocRef);
+        
+        // Verifica se o documento existe e se o email corresponde
+        if (userDoc.exists() && userDoc.data().email === ADMIN_EMAIL) {
+            const storeDocRef = doc(firestore, "stores", ADMIN_ID);
+            
+            // Inicia um batch para garantir a atomicidade
+            const batch = writeBatch(firestore);
+            batch.delete(userDocRef);
+            batch.delete(storeDocRef);
+            
+            await batch.commit();
+            console.log(`Legacy admin user ${ADMIN_EMAIL} and their store data have been successfully deleted.`);
+        }
+    } catch (error) {
+        console.error('Error during cleanup of legacy admin user:', error);
+    }
+})();
 
-      if (!adminDoc.exists()) {
-          console.log('Admin user not found, seeding database...');
-          const now = new Date();
-          const adminUserWithPassword = {
-            id: ADMIN_ID,
-            name: 'Administrador',
-            email: ADMIN_EMAIL,
-            businessName: 'Barbearia Ton barber',
-            subscription: {
-              plan: 'lifetime' as PlanType,
-              status: 'active' as 'active' | 'expired',
-              startDate: now.toISOString(),
-              expiresAt: null
-            },
-            password: ADMIN_PASSWORD
-          };
-          
-          await setDoc(adminDocRef, adminUserWithPassword);
-          
-          const schedulingUrl = `${window.location.origin}?store=${ADMIN_ID}`;
-          const adminData: AppData = {
-            profile: { 
-              ...DEFAULT_PROFILE, 
-              name: adminUserWithPassword.businessName, 
-              email: ADMIN_EMAIL,
-              schedulingUrl: schedulingUrl
-            },
-            appointments: [],
-            professionals: [...DEFAULT_PROFESSIONALS],
-            services: [...DEFAULT_SERVICES],
-            products: [],
-            clientPlans: []
-          };
+// --- Função para deletar usuário uelton.cs619@gmail.com (chamada uma vez) ---
+(async function deleteUeltonAccount() {
+    const USER_EMAIL = 'uelton.cs619@gmail.com';
 
-          await setDoc(doc(firestore, "stores", ADMIN_ID), adminData);
-          console.log(`Admin user seeded. Email: ${ADMIN_EMAIL}`);
-      } else {
-          // Opcional: Atualizar senha se necessário
-          const adminData = adminDoc.data();
-          if (adminData.password !== ADMIN_PASSWORD) {
-              adminData.password = ADMIN_PASSWORD;
-              await setDoc(adminDocRef, adminData);
-              console.log("Admin password updated.");
-          }
-      }
-  } catch (error) {
-    console.error('Failed to seed or update admin user:', error);
-  }
+    try {
+        const usersRef = collection(firestore, "users");
+        const q = query(usersRef, where("email", "==", USER_EMAIL));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            const userId = userDoc.id;
+            const storeDocRef = doc(firestore, "stores", userId);
+
+            const batch = writeBatch(firestore);
+            batch.delete(userDoc.ref);
+            batch.delete(storeDocRef);
+
+            await batch.commit();
+            console.log(`User ${USER_EMAIL} and their store data have been successfully deleted.`);
+        } else {
+            console.log(`User with email ${USER_EMAIL} not found for deletion.`);
+        }
+    } catch (error) {
+        console.error(`Error deleting user ${USER_EMAIL}:`, error);
+    }
 })();

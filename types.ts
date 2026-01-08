@@ -1,5 +1,8 @@
 
 
+
+
+
 export interface Service {
   id: string;
   name: string;
@@ -25,7 +28,7 @@ export interface Product {
 }
 
 export interface ClientPlan {
-  id: string;
+  id:string;
   name: string;
   price: number;
   description: string;
@@ -158,5 +161,5 @@ export interface AdminUser {
   subscription: Subscription;
 }
 
-export type ViewState = 'LANDING' | 'BOOKING_FLOW' | 'ADMIN' | 'AUTH' | 'SUBSCRIPTION';
+export type ViewState = 'LANDING' | 'BOOKING_FLOW' | 'ADMIN' | 'AUTH';
 export type Theme = 'light' | 'dark';

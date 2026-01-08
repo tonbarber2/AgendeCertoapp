@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
@@ -338,60 +339,93 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     </div>
   );
 
-  const renderDateTime = () => (
-    <div className="px-4 pb-24 max-w-2xl mx-auto">
-      <h2 className="text-xl font-bold text-c-text-primary dark:text-white mb-4">Qual o melhor dia?</h2>
-      
-      {/* Date Scroller */}
-      <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 mb-6">
-        {dayOptions.map((day, idx) => (
-          <button
-            key={idx}
-            onClick={() => {
-              setSelectedDate(day);
-              setSelectedTime(null);
-            }}
-            className={`flex-shrink-0 w-16 h-20 rounded-xl flex flex-col items-center justify-center gap-1 transition-all border ${
-              selectedDate.date.toDateString() === day.date.toDateString()
-                ? 'bg-primary text-white border-primary shadow-md'
-                : 'bg-white dark:bg-[#0a0a0a] text-c-text-secondary dark:text-gray-300 border-gray-200 dark:border-white/10'
-            }`}
-          >
-            <span className="text-xs font-medium opacity-80">{day.label}</span>
-            <span className="text-lg font-bold">{day.displayDate}</span>
-          </button>
-        ))}
-      </div>
+  const renderDateTime = () => {
+    const { allSlots, availableSlots } = getAvailableAndAllSlots();
 
-      <h2 className="text-xl font-bold text-c-text-primary dark:text-white mb-4">Horários disponíveis</h2>
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-        {allSlots.map(time => {
-          const isAvailable = availableSlots.includes(time);
-          return (
+    const morningSlots = allSlots.filter(time => parseInt(time.split(':')[0], 10) < 12);
+    const afternoonSlots = allSlots.filter(time => parseInt(time.split(':')[0], 10) >= 12 && parseInt(time.split(':')[0], 10) < 18);
+    const eveningSlots = allSlots.filter(time => parseInt(time.split(':')[0], 10) >= 18);
+
+    const renderSlotGrid = (slots: string[]) => {
+      return (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {slots.map(time => {
+            const isAvailable = availableSlots.includes(time);
+            return (
+              <button
+                key={time}
+                onClick={() => isAvailable && setSelectedTime(time)}
+                disabled={!isAvailable}
+                className={`py-2 px-1 rounded-lg text-sm font-medium border transition-all ${
+                  !isAvailable
+                      ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600 border-transparent cursor-not-allowed decoration-slice line-through'
+                      : selectedTime === time
+                          ? 'bg-primary text-white border-primary shadow-md'
+                          : 'bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white border-gray-200 dark:border-white/10 hover:border-primary'
+                }`}
+              >
+                {time}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <div className="px-4 pb-24 max-w-2xl mx-auto">
+        <h2 className="text-xl font-bold text-c-text-primary dark:text-white mb-4">Qual o melhor dia?</h2>
+        
+        {/* Date Scroller */}
+        <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 mb-6">
+          {dayOptions.map((day, idx) => (
             <button
-              key={time}
-              onClick={() => isAvailable && setSelectedTime(time)}
-              disabled={!isAvailable}
-              className={`py-2 px-1 rounded-lg text-sm font-medium border transition-all ${
-                !isAvailable
-                    ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600 border-transparent cursor-not-allowed decoration-slice line-through'
-                    : selectedTime === time
-                        ? 'bg-primary text-white border-primary shadow-md'
-                        : 'bg-white dark:bg-[#0a0a0a] text-c-text-secondary dark:text-gray-300 border-gray-200 dark:border-white/10 hover:border-primary'
+              key={idx}
+              onClick={() => {
+                setSelectedDate(day);
+                setSelectedTime(null);
+              }}
+              className={`flex-shrink-0 w-16 h-20 rounded-xl flex flex-col items-center justify-center gap-1 transition-all border ${
+                selectedDate.date.toDateString() === day.date.toDateString()
+                  ? 'bg-primary text-white border-primary shadow-md'
+                  : 'bg-white dark:bg-[#0a0a0a] text-c-text-secondary dark:text-gray-300 border-gray-200 dark:border-white/10'
               }`}
             >
-              {time}
+              <span className="text-xs font-medium opacity-80">{day.label}</span>
+              <span className="text-lg font-bold">{day.displayDate}</span>
             </button>
-          );
-        })}
+          ))}
+        </div>
+
+        <h2 className="text-xl font-bold text-c-text-primary dark:text-white mb-2">Horários disponíveis</h2>
+        
+        {morningSlots.length > 0 && (
+            <div className="mt-4">
+                <h3 className="text-base font-semibold text-gray-500 dark:text-gray-400 mb-3">Manhã</h3>
+                {renderSlotGrid(morningSlots)}
+            </div>
+        )}
+        {afternoonSlots.length > 0 && (
+            <div className="mt-6">
+                <h3 className="text-base font-semibold text-gray-500 dark:text-gray-400 mb-3">Tarde</h3>
+                {renderSlotGrid(afternoonSlots)}
+            </div>
+        )}
+        {eveningSlots.length > 0 && (
+            <div className="mt-6">
+                <h3 className="text-base font-semibold text-gray-500 dark:text-gray-400 mb-3">Noite</h3>
+                {renderSlotGrid(eveningSlots)}
+            </div>
+        )}
+
+        {allSlots.length === 0 ? (
+            <p className="text-center text-gray-500 text-sm mt-8">Nenhum horário de funcionamento para esta data.</p>
+        ) : availableSlots.length === 0 && allSlots.length > 0 ? (
+            <p className="text-center text-gray-500 text-sm mt-8">Nenhum horário disponível para esta data.</p>
+        ) : null}
       </div>
-      {allSlots.length === 0 ? (
-          <p className="text-center text-gray-500 text-sm mt-4">Nenhum horário de funcionamento para esta data.</p>
-      ) : availableSlots.length === 0 && (
-          <p className="text-center text-gray-500 text-sm mt-4">Nenhum horário disponível para esta data.</p>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderDetails = () => (
     <div className="px-4 pb-24 max-w-2xl mx-auto">

@@ -18,7 +18,14 @@ export const AIReceptionist: React.FC<AIReceptionistProps> = ({ businessProfile,
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
 
+  useEffect(() => {
+    // Preload the notification sound to avoid delays
+    notificationSoundRef.current = new Audio('https://cdn.jsdelivr.net/gh/k-next/sounds@main/sounds/bell.mp3');
+    notificationSoundRef.current.volume = 0.5; // Adjust volume as needed
+  }, []);
+  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -56,6 +63,13 @@ export const AIReceptionist: React.FC<AIReceptionistProps> = ({ businessProfile,
 
     setMessages(prev => [...prev, aiMsg]);
     setIsLoading(false);
+
+    // Play notification sound if enabled
+    if (businessProfile.notificationSound && notificationSoundRef.current) {
+      notificationSoundRef.current.play().catch(error => {
+        console.warn("Audio play failed. User interaction might be required.", error);
+      });
+    }
   };
 
   if (!isOpen) {

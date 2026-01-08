@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Bell, Moon, Sun, Calendar, ChevronLeft } from 'lucide-react';
-import { Theme, BusinessProfile } from '../types';
+import { Theme, BusinessProfile, BusinessHours } from '../types';
 import { Logo } from './Logo';
 
 interface LandingPageProps {
@@ -11,6 +11,7 @@ interface LandingPageProps {
   currentTheme: Theme;
   businessProfile: BusinessProfile;
   isLoggedIn?: boolean;
+  isPublicView?: boolean;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ 
@@ -19,7 +20,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   toggleTheme,
   currentTheme,
   businessProfile,
-  isLoggedIn = false
+  isLoggedIn = false,
+  isPublicView = false
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0]
@@ -31,6 +33,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     const date = new Date(year, month - 1, day); 
     onStartBooking(date);
   };
+
+  const daysOfWeek: { key: keyof BusinessHours; label: string }[] = [
+    { key: 'sunday', label: 'Domingo' },
+    { key: 'monday', label: 'Segunda' },
+    { key: 'tuesday', label: 'Terça' },
+    { key: 'wednesday', label: 'Quarta' },
+    { key: 'thursday', label: 'Quinta' },
+    { key: 'friday', label: 'Sexta' },
+    { key: 'saturday', label: 'Sábado' },
+  ];
+  const todayIndex = new Date().getDay();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#050505] font-sans transition-colors relative">
@@ -49,7 +62,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Header */}
       <header className="p-4 flex items-center justify-between relative z-10">
-         <div className="flex items-center gap-3">
+         <div 
+           className="flex items-center gap-3"
+           onClick={!isLoggedIn ? onGoToAdmin : undefined} 
+           style={{ cursor: !isLoggedIn ? 'pointer' : 'default' }}
+           title={!isLoggedIn ? 'Acessar painel de administrador' : ''}
+          >
             <Logo size={36} />
             <h1 className="font-bold text-xl text-c-text-primary dark:text-white hidden sm:block">Agende<span className="text-primary">Certo</span></h1>
          </div>
@@ -63,17 +81,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
                 {currentTheme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-            <button 
-                onClick={onGoToAdmin}
-                className={`border text-xs font-bold px-4 py-2 rounded-full transition-all flex items-center gap-2 ${
-                  isLoggedIn 
-                    ? 'bg-primary text-white border-primary hover:bg-primary-hover shadow-lg' 
-                    : 'border-primary text-primary hover:bg-primary hover:text-white'
-                }`}
-            >
-                {isLoggedIn && <ChevronLeft size={14} />}
-                {isLoggedIn ? 'VOLTAR AO PAINEL' : 'ACESSAR PAINEL ADM'}
-            </button>
+            {!isPublicView && (
+              <button 
+                  onClick={onGoToAdmin}
+                  className={`border text-xs font-bold px-4 py-2 rounded-full transition-all flex items-center gap-2 ${
+                    isLoggedIn 
+                      ? 'bg-primary text-white border-primary hover:bg-primary-hover shadow-lg' 
+                      : 'border-primary text-primary hover:bg-primary hover:text-white'
+                  }`}
+              >
+                  {isLoggedIn && <ChevronLeft size={14} />}
+                  {isLoggedIn ? 'VOLTAR AO PAINEL' : 'ACESSAR PAINEL ADM'}
+              </button>
+            )}
         </div>
       </header>
 
@@ -144,6 +164,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-gray-700/50 to-gray-900/50 -z-0"></div>
         </div>
 
+        {/* Business Hours */}
+        <div className="w-full max-w-sm mt-10 text-center">
+            <h3 className="font-bold text-c-text-primary dark:text-white mb-4">Nossos Horários</h3>
+            <div className="bg-white dark:bg-[#0a0a0a] rounded-xl p-4 shadow-sm border border-gray-100 dark:border-white/5 space-y-2 text-sm">
+                {daysOfWeek.map((day, index) => {
+                    const daySchedule = businessProfile.openingHours[day.key as keyof BusinessHours];
+                    const isToday = index === todayIndex;
+
+                    return (
+                        <div key={day.key} className={`flex justify-between items-center py-1.5 px-3 rounded-lg ${isToday ? 'bg-secondary dark:bg-primary/10' : ''}`}>
+                            <span className={`font-medium ${isToday ? 'text-primary font-bold' : 'text-c-text-secondary dark:text-gray-300'}`}>
+                                {day.label}
+                            </span>
+                            <span className={`font-semibold ${daySchedule.isOpen ? 'text-gray-800 dark:text-white' : 'text-red-500 dark:text-red-400'}`}>
+                                {daySchedule.isOpen && daySchedule.intervals.length > 0
+                                    ? daySchedule.intervals.map(i => `${i.start} - ${i.end}`).join(' / ') 
+                                    : 'Fechado'
+                                }
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
       </div>
     </div>
   );
