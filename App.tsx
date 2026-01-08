@@ -81,60 +81,68 @@ const App: React.FC = () => {
   // Effect 2: Load data based on the current user (or public view if no user)
   useEffect(() => {
     const initData = async () => {
-        try {
-            let data;
-            
-            // 1. Check for Store ID in URL (Client View)
-            const params = new URLSearchParams(window.location.search);
-            const storeIdFromUrl = params.get('store');
-            const professionalIdFromUrl = params.get('professionalId');
-            
-            if (storeIdFromUrl) {
-                setPublicStoreId(storeIdFromUrl);
-            }
+      try {
+        let data;
+        const params = new URLSearchParams(window.location.search);
+        const storeIdFromUrl = params.get('store');
+        const professionalIdFromUrl = params.get('professionalId');
 
-            if (currentUser) {
-                // Check Subscription Status and set appropriate view
-                if (currentUser.subscription?.status === 'expired') {
-                    setView('SUBSCRIPTION');
-                    setIsDataLoaded(true);
-                    return; // Stop data loading if expired
-                }
-                setView('ADMIN'); // Default to admin view if logged in and active
-                data = await db.loadData(currentUser.id);
-            } else {
-                // If visitor, load public data based on URL param or default
-                data = await db.loadPublicData(storeIdFromUrl);
-            }
-
-            if (data) {
-                let safeProfile = data.profile;
-                if (typeof safeProfile.openingHours === 'string') {
-                   safeProfile.openingHours = DEFAULT_BUSINESS_HOURS;
-                }
-
-                setBusinessProfile(safeProfile);
-                setAppointments(data.appointments || []);
-                setProfessionals(data.professionals || []);
-                setServices(data.services || []);
-                setProducts(data.products || []);
-                setClientPlans(data.clientPlans || []);
-                setCategories([]); 
-
-                // Handle direct professional link if not logged in
-                if (!currentUser && professionalIdFromUrl && data.professionals.some((p: Professional) => p.id === professionalIdFromUrl)) {
-                    setPreSelectedProId(professionalIdFromUrl);
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    setBookingDate(tomorrow);
-                    setView('BOOKING_FLOW');
-                }
-            }
-        } catch (error) {
-            console.error("Falha ao carregar dados:", error);
-        } finally {
+        if (currentUser) {
+          // ADMIN VIEW
+          if (currentUser.subscription?.status === 'expired') {
+            setView('SUBSCRIPTION');
             setIsDataLoaded(true);
+            return;
+          }
+          setView('ADMIN');
+          data = await db.loadData(currentUser.id);
+        } else if (storeIdFromUrl) {
+          // PUBLIC VIEW via shared link
+          setView('LANDING');
+          setPublicStoreId(storeIdFromUrl);
+          data = await db.loadPublicData(storeIdFromUrl);
+        } else {
+          // DEFAULT: AUTH screen
+          setView('AUTH');
+          setIsDataLoaded(true);
+          return;
         }
+
+        if (data) {
+          let safeProfile = data.profile;
+          if (typeof safeProfile.openingHours === 'string') {
+            safeProfile.openingHours = DEFAULT_BUSINESS_HOURS;
+          }
+
+          setBusinessProfile(safeProfile);
+          setAppointments(data.appointments || []);
+          setProfessionals(data.professionals || []);
+          setServices(data.services || []);
+          setProducts(data.products || []);
+          setClientPlans(data.clientPlans || []);
+          setCategories([]);
+
+          // Handle direct professional link if not logged in
+          if (!currentUser && professionalIdFromUrl && data.professionals.some((p: Professional) => p.id === professionalIdFromUrl)) {
+            setPreSelectedProId(professionalIdFromUrl);
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            setBookingDate(tomorrow);
+            setView('BOOKING_FLOW');
+          }
+        } else if (storeIdFromUrl) {
+            console.error(`No data for store: ${storeIdFromUrl}. Redirecting to Auth.`);
+            setView('AUTH');
+        }
+      } catch (error) {
+        console.error("Falha ao carregar dados:", error);
+        // Fallback to Auth on any error if not logged in
+        if (!currentUser) {
+          setView('AUTH');
+        }
+      } finally {
+        setIsDataLoaded(true);
+      }
     };
 
     initData();
@@ -196,30 +204,36 @@ const App: React.FC = () => {
   };
 
   const handleNewBooking = (newAppointment: Appointment) => {
+    // Optimistic UI update for the current session.
     setAppointments(prev => [...prev, newAppointment]);
     
-    // Save to the correct store
+    // If an admin is logged in, data is saved via the main useEffect hook.
+    // This logic is specifically for unauthenticated clients using a public link.
     if (!currentUser) {
-        const targetStoreId = publicStoreId;
-        
-        db.loadPublicData(targetStoreId).then(async (publicData) => {
-             let ownerId = targetStoreId;
-             
-             if (!ownerId) {
-                 const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-                 if(users.length > 0) {
-                     ownerId = users[users.length - 1].id;
-                 }
-             }
+      const targetStoreId = publicStoreId;
 
-             if (ownerId) {
-                 const updatedData = {
-                     ...publicData,
-                     appointments: [...(publicData.appointments || []), newAppointment]
-                 };
-                 await db.saveData(ownerId, updatedData);
-             }
-        });
+      if (!targetStoreId) {
+        console.error("Booking failed: No store ID found in URL. Cannot save appointment.");
+        alert("Ocorreu um erro: não foi possível identificar a loja para o agendamento. Por favor, use o link fornecido pelo estabelecimento.");
+        return; // Abort if the target store is unknown.
+      }
+      
+      // Asynchronously load the specific store's data, update it, and save it back.
+      db.loadData(targetStoreId).then(async (storeData) => {
+        if (storeData) {
+          const updatedData = {
+            ...storeData,
+            appointments: [...(storeData.appointments || []), newAppointment],
+          };
+          await db.saveData(targetStoreId, updatedData);
+        } else {
+          console.error(`Booking failed: Could not load data for store ID ${targetStoreId}.`);
+          alert("Ocorreu um erro ao salvar seu agendamento. A loja pode não existir.");
+        }
+      }).catch(error => {
+        console.error("Error during public booking save:", error);
+        alert("Ocorreu um erro de comunicação ao salvar seu agendamento. Tente novamente.");
+      });
     }
   };
 
@@ -246,8 +260,8 @@ const App: React.FC = () => {
   const handleLogout = () => {
       localStorage.removeItem('ac_logged_in_user_id');
       setCurrentUser(null);
-      setView('LANDING');
-      setIsDataLoaded(false); // Trigger reload of public data
+      setView('AUTH');
+      setIsDataLoaded(false);
   };
 
   const handleSubscriptionUpdate = (updatedUser: AdminUser) => {
@@ -269,7 +283,6 @@ const App: React.FC = () => {
           return (
             <AuthScreen 
               onLoginSuccess={handleLoginSuccess}
-              onBack={() => setView('LANDING')}
               toggleTheme={toggleTheme}
               currentTheme={theme}
             />
@@ -327,6 +340,7 @@ const App: React.FC = () => {
             pixKey={businessProfile.pixKey}
             adminPhone={businessProfile.whatsapp}
             appointments={appointments}
+            businessHours={businessProfile.openingHours}
           />
         );
       case 'LANDING':

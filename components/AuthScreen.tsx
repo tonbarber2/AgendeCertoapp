@@ -7,14 +7,13 @@ import { Logo } from './Logo';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: AdminUser) => void;
-  onBack: () => void;
   toggleTheme: () => void;
   currentTheme: Theme;
 }
 
 type AuthView = 'login' | 'register' | 'forgot_email' | 'forgot_code';
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBack, toggleTheme, currentTheme }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, toggleTheme, currentTheme }) => {
   const [view, setView] = useState<AuthView>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -302,12 +301,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBack, 
                     <ArrowLeft size={16} /> Voltar para Login
                 </button>
              )}
-
-             <div className="border-t border-gray-200 dark:border-white/5 pt-4">
-                 <button onClick={onBack} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                     Voltar para a Página Inicial
-                 </button>
-             </div>
           </div>
         </div>
       </div>

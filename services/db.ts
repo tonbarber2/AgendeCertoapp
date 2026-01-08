@@ -1,21 +1,22 @@
-
 import { AdminUser, Appointment, BusinessProfile, Professional, Service, PlanType, Product, ClientPlan } from "../types";
 import { SERVICES as DEFAULT_SERVICES, PROFESSIONALS as DEFAULT_PROFESSIONALS, DEFAULT_BUSINESS_HOURS } from "../constants";
+import { firebaseConfig } from './firebaseConfig';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-// CONFIGURAÇÃO DO SERVIDOR
-// Para produção, altere para a URL da sua API real (ex: 'https://api.seusite.com')
-// Se deixado vazio ou como 'mock', usará o armazenamento local do navegador (localStorage)
-const API_URL = ''; 
+// Inicializa o Firebase
+const app = initializeApp(firebaseConfig);
+const firestore = getFirestore(app);
 
 // Default Profile Template (Premium Gold Theme)
 const DEFAULT_PROFILE: BusinessProfile = {
-  name: 'Minha Barbearia',
+  name: 'Barbearia Ton barber',
   email: 'contato@exemplo.com',
   phone: '(00) 0000-0000',
-  logo: null,
+  logo: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAIAAgADASIAAhEBAxEB/8QAGwABAAMBAQEBAAAAAAAAAAAAAAECBAMFBgf/xABHEAACAQMCBAMFBwIEBAMGBwAAAQIDERIhBAUxQVEGYXGBIhMykaGxwfBCUnLR4RQVIzOCFiQ0U2KSFzRzorLC8XWEk6PT/8QAGAEBAQEBAQAAAAAAAAAAAAAAAAECAwT/xAAgEQEBAQEAAwEAAwEBAAAAAAAAAQIREhMhMQNBUQQi/9oADAMBAAIRAxEAPwD+SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAACgAAAAAAAAAKAAAAAAAAAAAAAAAKAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAKAAAAAAAAAAAAAAAoAAAAAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//2Q==',
   backgroundImage: null,
-  pixKey: '00.000.000/0001-00',
-  whatsapp: '+55',
+  pixKey: '71986073552',
+  whatsapp: '71986073552',
   address: '',
   schedulingUrl: '',
   openingHours: DEFAULT_BUSINESS_HOURS,
@@ -23,14 +24,14 @@ const DEFAULT_PROFILE: BusinessProfile = {
   selectedSound: 'Padrão (Digital)',
   fontFamily: 'Inter',
   colors: {
-    primary: '#D4AF37',   // Metallic Gold
-    secondary: '#F3E5AB', // Champagne
-    background: '#f9fafb', // Light mode bg (Dark mode handled by index.html)
-    listTitle: '#111827',
-    listPrice: '#D4AF37',
-    listInfo: '#6b7280',
-    textPrimary: '#111827',
-    textSecondary: '#6b7280'
+      primary: '#D4AF37',
+      secondary: '#F3E5AB',
+      background: '#f9fafb',
+      listTitle: '#111827',
+      listPrice: '#D4AF37',
+      listInfo: '#6b7280',
+      textPrimary: '#111827',
+      textSecondary: '#6b7280'
   }
 };
 
@@ -48,53 +49,28 @@ const recoveryCodes = new Map<string, string>();
 
 export const db = {
   
-  // --- Helper: Verifica se deve usar API Remota ---
-  useRemote: () => API_URL && API_URL !== 'mock',
-
   // --- Auth Methods ---
 
   async register(name: string, email: string, password: string, businessName: string): Promise<AdminUser> {
+    await this.delay(800);
     
-    // 1. Tentar registrar no Servidor Remoto
-    if (this.useRemote()) {
-        try {
-            const response = await fetch(`${API_URL}/auth/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, password, businessName })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Erro ao registrar no servidor.");
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error("Falha ao conectar com servidor:", error);
-            // Se falhar a conexão, lança erro para o usuário saber
-            throw error; 
-        }
+    // Verifica se o email já existe
+    const usersRef = collection(firestore, "users");
+    const q = query(usersRef, where("email", "==", email));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      throw new Error("E-mail já cadastrado.");
     }
-
-    // 2. Fallback: Simulação Local (LocalStorage)
-    await this.delay(800); 
     
-    const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-    const existing = users.find((u: any) => u.email === email);
-    
-    if (existing) throw new Error("E-mail já cadastrado.");
-
-    // Lógica de Assinatura:
-    // Usuário específico ganha vitalício (lifetime)
-    // Outros ganham 'trial' de 7 dias
     const isLifetimeUser = email.toLowerCase() === 'ton222418@gmail.com';
     const now = new Date();
     const trialExpiration = new Date(now);
-    trialExpiration.setDate(now.getDate() + 7); // Adiciona 7 dias
+    trialExpiration.setDate(now.getDate() + 7);
+
+    const newUserId = Date.now().toString();
 
     const newUser: AdminUser = {
-      id: Date.now().toString(),
+      id: newUserId,
       name,
       email,
       businessName,
@@ -105,14 +81,12 @@ export const db = {
         expiresAt: isLifetimeUser ? null : trialExpiration.toISOString()
       }
     };
+    
+    const userWithPassword = { ...newUser, password };
+    await setDoc(doc(firestore, "users", newUser.id), userWithPassword);
 
-    users.push({ ...newUser, password }); 
-    localStorage.setItem('ac_users', JSON.stringify(users));
-
-    // Gera e salva o link exclusivo no momento do cadastro
     const schedulingUrl = `${window.location.origin}?store=${newUser.id}`;
 
-    // Inicializa dados
     await this.saveData(newUser.id, {
       profile: { 
         ...DEFAULT_PROFILE, 
@@ -131,134 +105,88 @@ export const db = {
   },
 
   async login(email: string, password: string): Promise<AdminUser> {
-    
-    // 1. Tentar Login no Servidor Remoto
-    if (this.useRemote()) {
-        try {
-            const response = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-
-            if (!response.ok) {
-                 throw new Error("Credenciais inválidas ou erro no servidor.");
-            }
-
-            const user = await response.json();
-            return user;
-        } catch (error) {
-            console.error("Erro no login remoto:", error);
-            throw error;
-        }
-    }
-
-    // 2. Fallback: Login Local
     await this.delay(800);
     
-    const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-    const userIndex = users.findIndex((u: any) => u.email === email && u.password === password);
+    const usersRef = collection(firestore, "users");
+    const q = query(usersRef, where("email", "==", email), where("password", "==", password));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      throw new Error("Credenciais inválidas.");
+    }
 
-    if (userIndex === -1) throw new Error("Credenciais inválidas.");
+    let user = querySnapshot.docs[0].data() as AdminUser & { password?: string };
+    
+    let needsUpdate = false;
 
-    let user = users[userIndex];
-
-    // --- CORREÇÃO DE DADOS LEGADOS (Subscription Missing) ---
-    // Se o usuário foi criado antes da funcionalidade de assinatura, adicionamos uma default.
     if (!user.subscription) {
         const now = new Date();
         const trialExpiration = new Date(now);
         trialExpiration.setDate(now.getDate() + 7);
-
-        user.subscription = {
-            plan: 'trial',
-            status: 'active',
-            startDate: now.toISOString(),
-            expiresAt: trialExpiration.toISOString()
-        };
-        
-        // Atualiza no storage para corrigir permanentemente
-        users[userIndex] = user;
-        localStorage.setItem('ac_users', JSON.stringify(users));
+        user.subscription = { plan: 'trial', status: 'active', startDate: now.toISOString(), expiresAt: trialExpiration.toISOString() };
+        needsUpdate = true;
     }
 
-    // --- CORREÇÃO VITALÍCIA ---
-    // Se for o email do administrador mestre, força o plano lifetime e status active
     if (user.email.toLowerCase() === 'ton222418@gmail.com') {
         if (user.subscription.plan !== 'lifetime' || user.subscription.status !== 'active') {
-            user.subscription = {
-                plan: 'lifetime',
-                status: 'active',
-                startDate: new Date().toISOString(),
-                expiresAt: null
-            };
-            users[userIndex] = user;
-            localStorage.setItem('ac_users', JSON.stringify(users));
+            user.subscription = { plan: 'lifetime', status: 'active', startDate: new Date().toISOString(), expiresAt: null };
+            needsUpdate = true;
         }
     }
 
-    // --- VERIFICAÇÃO DE EXPIRAÇÃO ---
-    // Se não for vitalício, verifica se o prazo (7 dias ou plano anual/semestral) venceu
     if (user.subscription.plan !== 'lifetime' && user.subscription.expiresAt) {
         const expiryDate = new Date(user.subscription.expiresAt);
-        if (new Date() > expiryDate) {
+        if (new Date() > expiryDate && user.subscription.status !== 'expired') {
             user.subscription.status = 'expired';
-            users[userIndex] = user;
-            localStorage.setItem('ac_users', JSON.stringify(users));
+            needsUpdate = true;
         }
     }
-
-    const { password: _, ...safeUser } = user;
-    return safeUser;
+    
+    if(needsUpdate) {
+        await setDoc(doc(firestore, "users", user.id), user);
+    }
+    
+    delete user.password;
+    return user;
   },
   
   async getUserById(userId: string): Promise<AdminUser | null> {
-    if (this.useRemote()) {
-      // A lógica da API para buscar um usuário por ID iria aqui
-    }
+    const userDocRef = doc(firestore, "users", userId);
+    const userDoc = await getDoc(userDocRef);
 
-    // Lógica Local
-    const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-    const user = users.find((u: any) => u.id === userId);
-
-    if (user) {
-      // Re-verifica a expiração da assinatura sempre que o usuário é carregado
+    if (userDoc.exists()) {
+      const user = userDoc.data() as AdminUser & { password?: string };
+      // Re-valida a assinatura ao carregar o usuário
       if (user.subscription && user.subscription.plan !== 'lifetime' && user.subscription.expiresAt) {
           const expiryDate = new Date(user.subscription.expiresAt);
-          if (new Date() > expiryDate) {
+          if (new Date() > expiryDate && user.subscription.status !== 'expired') {
               user.subscription.status = 'expired';
+              await setDoc(userDocRef, user); // Atualiza no banco
           }
       }
-      const { password: _, ...safeUser } = user;
-      return safeUser;
+      delete user.password;
+      return user;
     }
-    
     return null;
   },
 
   async requestPasswordReset(email: string): Promise<string> {
     await this.delay(1000);
     
-    const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-    const user = users.find((u: any) => u.email === email);
+    const usersRef = collection(firestore, "users");
+    const q = query(usersRef, where("email", "==", email));
+    const querySnapshot = await getDocs(q);
     
-    if (!user) throw new Error("Usuário não encontrado.");
-
-    const storageKey = `ac_data_${user.id}`;
-    const userDataStr = localStorage.getItem(storageKey);
-    let phone = "";
-    
-    if (userDataStr) {
-        try {
-            const userData = JSON.parse(userDataStr);
-            phone = userData.profile?.whatsapp || userData.profile?.phone || "";
-        } catch (e) {
-            console.error("Dados corrompidos ao recuperar senha");
-        }
+    if (querySnapshot.empty) {
+        throw new Error("Usuário não encontrado.");
     }
+    const user = querySnapshot.docs[0].data();
+    
+    const storeData = await this.loadData(user.id);
+    const phone = storeData.profile?.whatsapp || storeData.profile?.phone || "";
 
     if (!phone || phone.length < 8) {
-        throw new Error("Nenhum telefone válido cadastrado para este usuário. Entre em contato com o suporte.");
+        throw new Error("Nenhum telefone válido cadastrado. Entre em contato com o suporte.");
     }
 
     const code = Math.floor(1000 + Math.random() * 9000).toString();
@@ -275,50 +203,41 @@ export const db = {
   async confirmPasswordReset(email: string, code: string, newPassword: string): Promise<void> {
       await this.delay(1000);
       
-      const storedCode = recoveryCodes.get(email);
-      if (!storedCode || storedCode !== code) {
+      if (recoveryCodes.get(email) !== code) {
           throw new Error("Código inválido ou expirado.");
       }
 
-      const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-      const userIndex = users.findIndex((u: any) => u.email === email);
+      const usersRef = collection(firestore, "users");
+      const q = query(usersRef, where("email", "==", email));
+      const querySnapshot = await getDocs(q);
 
-      if (userIndex === -1) throw new Error("Usuário não encontrado.");
-
-      users[userIndex].password = newPassword;
-      localStorage.setItem('ac_users', JSON.stringify(users));
+      if (querySnapshot.empty) {
+          throw new Error("Usuário não encontrado.");
+      }
+      
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+      userData.password = newPassword;
+      await setDoc(userDoc.ref, userData);
       
       recoveryCodes.delete(email);
   },
 
   async renewSubscription(userId: string, plan: PlanType): Promise<AdminUser> {
-      // Server Logic
-      if (this.useRemote()) {
-          const response = await fetch(`${API_URL}/users/${userId}/subscription`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ plan })
-          });
-          if (!response.ok) throw new Error("Erro ao renovar assinatura.");
-          return await response.json();
-      }
-
-      // Local Logic
       await this.delay(1000);
-      const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-      const userIndex = users.findIndex((u: any) => u.id === userId);
+      const userDocRef = doc(firestore, "users", userId);
+      const userDoc = await getDoc(userDocRef);
       
-      if (userIndex === -1) throw new Error("Usuário não encontrado.");
+      if (!userDoc.exists()) throw new Error("Usuário não encontrado.");
 
       const now = new Date();
       const newExpiration = new Date();
 
-      // Configuração dos Prazos dos Planos
       if (plan === 'monthly') newExpiration.setDate(now.getDate() + 30);
-      else if (plan === 'semiannual') newExpiration.setDate(now.getDate() + 180); // 6 meses
-      else if (plan === 'annual') newExpiration.setDate(now.getDate() + 365); // 1 ano
+      else if (plan === 'semiannual') newExpiration.setDate(now.getDate() + 180);
+      else if (plan === 'annual') newExpiration.setDate(now.getDate() + 365);
       
-      const user = users[userIndex];
+      const user = userDoc.data() as AdminUser & { password?: string };
       user.subscription = {
           plan: plan,
           status: 'active',
@@ -326,33 +245,20 @@ export const db = {
           expiresAt: newExpiration.toISOString()
       };
 
-      users[userIndex] = user;
-      localStorage.setItem('ac_users', JSON.stringify(users));
+      await setDoc(userDocRef, user);
 
-      const { password: _, ...safeUser } = user;
-      return safeUser;
+      delete user.password;
+      return user;
   },
 
   // --- Data Methods (Sync) ---
 
   async loadData(userId: string): Promise<AppData> {
-    if (this.useRemote()) {
-        try {
-            const response = await fetch(`${API_URL}/data/${userId}`);
-            if (response.ok) {
-                const data = await response.json();
-                return this.normalizeData(data);
-            }
-        } catch (e) {
-            console.warn("Erro ao carregar do servidor, tentando local...");
-        }
-    }
-
     await this.delay(500);
-    const storageKey = `ac_data_${userId}`;
-    const data = localStorage.getItem(storageKey);
+    const docRef = doc(firestore, "stores", userId);
+    const docSnap = await getDoc(docRef);
     
-    if (!data) {
+    if (!docSnap.exists()) {
       return {
         profile: DEFAULT_PROFILE,
         appointments: [],
@@ -362,38 +268,12 @@ export const db = {
         clientPlans: []
       };
     }
-
-    try {
-        return this.normalizeData(JSON.parse(data));
-    } catch (e) {
-        console.error("Erro ao analisar dados do localStorage:", e);
-        // Em caso de corrupção, retorna defaults
-        return {
-            profile: DEFAULT_PROFILE,
-            appointments: [],
-            professionals: DEFAULT_PROFESSIONALS,
-            services: DEFAULT_SERVICES,
-            products: [],
-            clientPlans: []
-        };
-    }
+    return this.normalizeData(docSnap.data());
   },
 
   async saveData(userId: string, data: AppData): Promise<void> {
-    if (this.useRemote()) {
-        try {
-             await fetch(`${API_URL}/data/${userId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-        } catch (e) {
-            console.error("Erro ao salvar no servidor:", e);
-        }
-    }
-
-    const storageKey = `ac_data_${userId}`;
-    localStorage.setItem(storageKey, JSON.stringify(data));
+    const docRef = doc(firestore, "stores", userId);
+    await setDoc(docRef, data);
   },
 
   normalizeData(data: any): AppData {
@@ -409,27 +289,27 @@ export const db = {
   },
 
   async loadPublicData(storeId?: string | null): Promise<AppData> {
-    if (this.useRemote()) {
-        try {
-            const endpoint = storeId ? `${API_URL}/public/store/${storeId}` : `${API_URL}/public/store`;
-            const response = await fetch(endpoint);
-            if (response.ok) return this.normalizeData(await response.json());
-        } catch (e) { console.warn("Erro carregando dados públicos remotos"); }
-    }
-
-    const users = JSON.parse(localStorage.getItem('ac_users') || '[]');
-    let targetUser = null;
-
+    const usersRef = collection(firestore, "users");
+    let targetUser: AdminUser | null = null;
+    
     if (storeId) {
-        targetUser = users.find((u: any) => u.id === storeId);
-    } else if (users.length > 0) {
-        targetUser = users[users.length - 1];
+      const userDoc = await getDoc(doc(usersRef, storeId));
+      if (userDoc.exists()) targetUser = userDoc.data() as AdminUser;
+    } else {
+        // Fallback: Tenta carregar o admin principal
+        const adminEmail = 'ton222418@gmail.com';
+        const q = query(usersRef, where("email", "==", adminEmail));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            targetUser = querySnapshot.docs[0].data() as AdminUser;
+        }
     }
-
+    
     if (targetUser) {
       return this.loadData(targetUser.id);
     }
     
+    // Final fallback
     return {
       profile: DEFAULT_PROFILE,
       appointments: [],
@@ -444,3 +324,64 @@ export const db = {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 };
+
+// --- SEED ADMIN USER ---
+// Garante que o usuário administrador exista no Firestore.
+(async function seedAdminUser() {
+  const ADMIN_EMAIL = 'ton222418@gmail.com';
+  const ADMIN_ID = 'admin_user_ton_01'; // Fixed ID
+  const ADMIN_PASSWORD = '2222';
+
+  try {
+      const adminDocRef = doc(firestore, "users", ADMIN_ID);
+      const adminDoc = await getDoc(adminDocRef);
+
+      if (!adminDoc.exists()) {
+          console.log('Admin user not found, seeding database...');
+          const now = new Date();
+          const adminUserWithPassword = {
+            id: ADMIN_ID,
+            name: 'Administrador',
+            email: ADMIN_EMAIL,
+            businessName: 'Barbearia Ton barber',
+            subscription: {
+              plan: 'lifetime' as PlanType,
+              status: 'active' as 'active' | 'expired',
+              startDate: now.toISOString(),
+              expiresAt: null
+            },
+            password: ADMIN_PASSWORD
+          };
+          
+          await setDoc(adminDocRef, adminUserWithPassword);
+          
+          const schedulingUrl = `${window.location.origin}?store=${ADMIN_ID}`;
+          const adminData: AppData = {
+            profile: { 
+              ...DEFAULT_PROFILE, 
+              name: adminUserWithPassword.businessName, 
+              email: ADMIN_EMAIL,
+              schedulingUrl: schedulingUrl
+            },
+            appointments: [],
+            professionals: [...DEFAULT_PROFESSIONALS],
+            services: [...DEFAULT_SERVICES],
+            products: [],
+            clientPlans: []
+          };
+
+          await setDoc(doc(firestore, "stores", ADMIN_ID), adminData);
+          console.log(`Admin user seeded. Email: ${ADMIN_EMAIL}`);
+      } else {
+          // Opcional: Atualizar senha se necessário
+          const adminData = adminDoc.data();
+          if (adminData.password !== ADMIN_PASSWORD) {
+              adminData.password = ADMIN_PASSWORD;
+              await setDoc(adminDocRef, adminData);
+              console.log("Admin password updated.");
+          }
+      }
+  } catch (error) {
+    console.error('Failed to seed or update admin user:', error);
+  }
+})();

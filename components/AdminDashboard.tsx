@@ -68,8 +68,6 @@ interface AdminDashboardProps {
   currentUser: AdminUser;
 }
 
-interface Transaction { id: string; title: string; type: 'income' | 'expense'; amount: number; date: string; }
-
 // Interface auxiliar para edição de cliente
 interface EditableClient {
     originalName: string;
@@ -129,15 +127,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingPlan, setEditingPlan] = useState<ClientPlan | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   
   // Novo estado para editar cliente
   const [editingClient, setEditingClient] = useState<EditableClient | null>(null);
-
-  const [transactions, setTransactions] = useState<Transaction[]>([
-      { id: '1', title: 'Corte João', type: 'income', amount: 45.00, date: 'Hoje' },
-      { id: '2', title: 'Conta Luz', type: 'expense', amount: 150.00, date: 'Ontem' },
-  ]);
 
   // --- Calculations for Dashboard ---
   const getDaysRemaining = () => {
@@ -368,9 +360,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
       // Logic for simple summary
       const todaysAppointments = appointments.filter(a => a.date.includes(today) || a.date === 'Hoje');
-      const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+      
+      const confirmedAppointments = appointments.filter(a => a.status === 'confirmado');
+      const income = confirmedAppointments.reduce((acc, apt) => {
+        const service = services.find(s => s.name === apt.service);
+        return acc + (service ? service.price : 0);
+      }, 0);
       
       const pendingAppointments = appointments.filter(a => a.status === 'pendente');
+      const schedulingUrl = businessProfile.schedulingUrl || `${window.location.origin}?store=${currentUser.id}`;
 
       return (
           <div className="space-y-6 animate-fade-in-up pb-24 px-4 pt-4">
@@ -465,24 +463,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
               </div>
 
-              {/* Action Banner (Share) - Botão de Copiar Link */}
+              {/* Action Banner (Share) - Link de Agendamento */}
               <div className="bg-gradient-to-r from-gray-900 to-gray-800 dark:from-white/10 dark:to-white/5 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
                   <div className="relative z-10">
-                      <h3 className="font-bold text-lg mb-1">Divulgue seu Negócio</h3>
-                      <p className="text-sm text-gray-300 mb-4 max-w-[220px]">Compartilhe o link de agendamento com seus clientes.</p>
-                      <button onClick={handleCopyLink} className={`w-full px-3 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md ${linkCopied ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
-                         {linkCopied ? (
-                             <>
-                                 <Check size={18} /> COPIADO!
-                             </>
-                         ) : (
-                             <>
-                                 <LinkIcon size={18} /> COPIAR LINK
-                             </>
-                         )}
-                     </button>
+                      <h3 className="font-bold text-lg mb-1">Seu Link de Agendamento</h3>
+                      <p className="text-sm text-gray-300 mb-4">Este é seu link exclusivo. Compartilhe com seus clientes!</p>
+                      
+                      <div className="flex gap-2">
+                          <input 
+                              type="text" 
+                              readOnly 
+                              value={schedulingUrl}
+                              className="w-full bg-gray-700/50 text-white text-xs rounded-lg px-3 py-2 border border-gray-600/50 focus:outline-none truncate" 
+                          />
+                          <button onClick={handleCopyLink} className={`w-auto px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md ${linkCopied ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
+                             {linkCopied ? <Check size={16} /> : <LinkIcon size={16} />}
+                             {linkCopied ? 'COPIADO' : 'COPIAR'}
+                         </button>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                          Suas alterações são salvas automaticamente e refletidas neste link.
+                      </p>
                   </div>
-                  <div className="absolute right-[-20px] bottom-[-20px] opacity-20 rotate-12">
+                  <div className="absolute right-[-20px] bottom-[-20px] opacity-20 rotate-12 pointer-events-none">
                       <QrCode size={140} />
                   </div>
               </div>
@@ -548,14 +551,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     return (
         <div className="space-y-4 animate-fade-in-up pb-24 px-4 pt-4">
-            <div className="flex justify-between items-center mb-4 relative z-20">
+            <div className="mb-4 relative z-20">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white">Agenda</h2>
-                <div className="flex items-center gap-3">
-                    <button onClick={handleCopyLink} className={`p-2 rounded-lg flex items-center gap-2 text-xs font-bold transition-all ${linkCopied ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'}`}>
-                        {linkCopied ? <Check size={16} /> : <LinkIcon size={16} />}
-                        {linkCopied ? 'COPIADO' : 'LINK'}
-                    </button>
-                </div>
             </div>
             
             <button onClick={handleAddNew} className="w-full py-3 bg-white dark:bg-[#0a0a0a] border-2 border-dashed border-gray-300 dark:border-white/10 text-gray-400 rounded-xl font-bold text-sm mb-4 flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
@@ -743,116 +740,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const renderFinancesView = () => {
-       // ... existing finance view code ...
-      const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-      const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    // Deriva as transações financeiras diretamente dos agendamentos confirmados
+    const confirmedAppointments = appointments.filter(a => a.status === 'confirmado');
 
-      const handleEditChange = (field: keyof Transaction, value: any) => {
-          if (editingTransaction) {
-              setEditingTransaction({ ...editingTransaction, [field]: value });
-          }
-      };
+    const financialTransactions = confirmedAppointments.map(apt => {
+        const service = services.find(s => s.name === apt.service);
+        return {
+            id: apt.id,
+            title: `${apt.service} - ${apt.client}`,
+            type: 'income' as const,
+            amount: service ? service.price : 0,
+            date: `${apt.date} às ${apt.time}`
+        };
+    });
 
-      const handleSaveTransaction = () => {
-          if (editingTransaction) {
-              setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? editingTransaction : t));
-              setEditingTransaction(null);
-          }
-      };
+    const totalIncome = financialTransactions.reduce((acc, t) => acc + t.amount, 0);
 
-      const handleDeleteTransaction = (id: string) => {
-          if(confirm('Excluir movimentação?')) {
-              setTransactions(prev => prev.filter(t => t.id !== id));
-          }
-      }
+    return (
+        <div className="space-y-6 pb-24 px-4 pt-4 animate-fade-in-up">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Financeiro</h2>
+            
+            <div className="bg-gray-900 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/5">
+                 <div className="relative z-10">
+                     <p className="text-green-400 text-sm font-medium mb-1">Faturamento Total (Confirmado)</p>
+                     <p className="text-4xl font-bold">R$ {totalIncome.toFixed(2)}</p>
+                 </div>
+                 <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 text-white/10" size={100} />
+            </div>
 
-      const handleAddTransaction = () => {
-          const newTrans: Transaction = { id: Date.now().toString(), title: '', type: 'income', amount: 0, date: 'Hoje' };
-          setTransactions([newTrans, ...transactions]);
-          setEditingTransaction(newTrans);
-      }
-
-      return (
-          <div className="space-y-6 pb-24 px-4 pt-4 animate-fade-in-up">
-              <h2 className="text-xl font-bold text-gray-800 dark:text-white">Financeiro</h2>
-              
-              <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl border border-green-100 dark:border-green-900/50">
-                      <p className="text-xs text-green-600 dark:text-green-400 font-bold uppercase mb-1">Entradas</p>
-                      <p className="text-2xl font-bold text-green-700 dark:text-green-300">R$ {income.toFixed(2)}</p>
-                  </div>
-                  <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-2xl border border-red-100 dark:border-red-900/50">
-                      <p className="text-xs text-red-600 dark:text-red-400 font-bold uppercase mb-1">Saídas</p>
-                      <p className="text-2xl font-bold text-red-700 dark:text-red-300">R$ {expense.toFixed(2)}</p>
-                  </div>
-              </div>
-              
-              <div className="bg-gray-900 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden border border-white/5">
-                   <div className="relative z-10">
-                       <p className="text-gray-400 text-sm font-medium mb-1">Saldo Total</p>
-                       <p className="text-4xl font-bold">R$ {(income - expense).toFixed(2)}</p>
-                   </div>
-                   <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 text-white/10" size={100} />
-              </div>
-
-              <div>
-                  <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-bold text-gray-800 dark:text-white">Histórico</h3>
-                      <button onClick={handleAddTransaction} className="text-primary text-sm font-bold flex items-center gap-1 bg-primary/10 px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors">
-                          <Plus size={14} /> Nova
-                      </button>
-                  </div>
-                  
-                  <div className="space-y-3">
-                      {transactions.map(t => {
-                          const isEditing = editingTransaction?.id === t.id;
-                          const dataToDisplay = isEditing ? editingTransaction! : t;
-                          
-                          return (
-                            <div key={t.id} className={`bg-white dark:bg-[#0a0a0a] rounded-xl shadow-sm overflow-hidden transition-all dark:border dark:border-white/5 ${isEditing ? 'ring-2 ring-primary p-4' : 'p-4 flex items-center justify-between'}`}>
-                                {isEditing ? (
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <h4 className="font-bold text-primary text-xs uppercase">Editar Movimentação</h4>
-                                            <button onClick={() => setEditingTransaction(null)} className="text-gray-400"><X size={16}/></button>
-                                        </div>
-                                        <input type="text" value={dataToDisplay.title} onChange={e => handleEditChange('title', e.target.value)} className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-[#111] border-gray-200 dark:border-white/10 text-gray-900 dark:text-white text-sm" placeholder="Descrição" />
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleEditChange('type', 'income')} className={`flex-1 p-2 rounded-lg text-sm font-bold ${dataToDisplay.type === 'income' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 dark:bg-[#111] text-gray-500'}`}>Entrada</button>
-                                            <button onClick={() => handleEditChange('type', 'expense')} className={`flex-1 p-2 rounded-lg text-sm font-bold ${dataToDisplay.type === 'expense' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-gray-100 dark:bg-[#111] text-gray-500'}`}>Saída</button>
-                                        </div>
-                                        <input type="number" value={dataToDisplay.amount} onChange={e => handleEditChange('amount', parseFloat(e.target.value))} className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-[#111] border-gray-200 dark:border-white/10 text-gray-900 dark:text-white text-sm" placeholder="Valor" />
-                                        <div className="flex justify-end gap-2 mt-2">
-                                             <button onClick={() => handleDeleteTransaction(t.id)} className="p-2 text-red-500 bg-red-50 rounded-lg"><Trash2 size={16}/></button>
-                                             <button onClick={handleSaveTransaction} className="flex-1 bg-primary text-white font-bold py-2 rounded-lg text-sm"><CheckCircle size={16} className="inline mr-1"/> Salvar</button>
-                                        </div>
+            <div>
+                <h3 className="font-bold text-gray-800 dark:text-white mb-4">Detalhes do Faturamento</h3>
+                
+                {financialTransactions.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500">
+                        Nenhuma entrada registrada. Agendamentos confirmados aparecerão aqui.
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {financialTransactions.map(t => (
+                            <div key={t.id} className="bg-white dark:bg-[#0a0a0a] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-100 text-green-600">
+                                        <DollarSign size={20} />
                                     </div>
-                                ) : (
-                                    <>
-                                        <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => setEditingTransaction(t)}>
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${t.type === 'income' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                                <DollarSign size={20} />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="font-bold text-gray-800 dark:text-white truncate">{t.title}</p>
-                                                <p className="text-xs text-gray-500">{t.date}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 pl-2">
-                                            <span className={`font-bold whitespace-nowrap ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                                                {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
-                                            </span>
-                                            <button onClick={() => setEditingTransaction(t)} className="text-gray-400 hover:text-blue-500"><Edit2 size={16} /></button>
-                                        </div>
-                                    </>
-                                )}
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-gray-800 dark:text-white truncate">{t.title}</p>
+                                        <p className="text-xs text-gray-500">{t.date}</p>
+                                    </div>
+                                </div>
+                                <span className="font-bold whitespace-nowrap text-green-600 pl-2">
+                                    + R$ {t.amount.toFixed(2)}
+                                </span>
                             </div>
-                          );
-                      })}
-                  </div>
-              </div>
-          </div>
-      );
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
   };
 
   const renderProfileView = () => {
@@ -980,7 +925,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <span className="text-white text-xs font-bold">Alterar</span>
                             </div>
                         </div>
-                        <input type="file" ref={logoInputRef} onChange={handleLogoChange} className="hidden" accept="image/*" />
+                        <input type="file" ref={logoInputRef} onChange={handleLogoChange} className="hidden" />
                     </div>
 
                     <div className="space-y-4">
@@ -1026,10 +971,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              />
                         </div>
                     </div>
-                    
-                    <button onClick={handleSaveProfileData} className="w-full bg-primary text-white font-bold py-3 rounded-xl mt-4 flex items-center justify-center gap-2 hover:bg-primary-hover transition-colors">
-                        <Save size={18} /> Salvar Alterações
-                    </button>
                 </div>
             </div>
         );
@@ -1060,7 +1001,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <Camera className="text-white" size={24} />
                              </div>
                         </div>
-                        <input type="file" ref={bgInputRef} onChange={handleBgChange} className="hidden" accept="image/*" />
+                        <input type="file" ref={bgInputRef} onChange={handleBgChange} className="hidden" />
                     </div>
 
                     {/* Colors */}
@@ -1073,7 +1014,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <input 
                                         type="color" 
                                         value={profileForm.colors.primary}
-                                        onChange={(e) => setProfileForm({...profileForm, colors: { ...profileForm.colors, primary: e.target.value }})}
+                                        onChange={(e) => {
+                                            setProfileForm({...profileForm, colors: { ...profileForm.colors, primary: e.target.value }});
+                                            handleSaveProfileData();
+                                        }}
                                         className="w-8 h-8 rounded-lg cursor-pointer border-none p-0"
                                     />
                                     <span className="text-xs font-mono text-gray-600 dark:text-gray-400">{profileForm.colors.primary}</span>
@@ -1085,7 +1029,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <input 
                                         type="color" 
                                         value={profileForm.colors.secondary}
-                                        onChange={(e) => setProfileForm({...profileForm, colors: { ...profileForm.colors, secondary: e.target.value }})}
+                                        onChange={(e) => {
+                                            setProfileForm({...profileForm, colors: { ...profileForm.colors, secondary: e.target.value }});
+                                            handleSaveProfileData();
+                                        }}
                                         className="w-8 h-8 rounded-lg cursor-pointer border-none p-0"
                                     />
                                     <span className="text-xs font-mono text-gray-600 dark:text-gray-400">{profileForm.colors.secondary}</span>
@@ -1099,7 +1046,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <label className="text-xs font-bold text-gray-500 uppercase block mb-3">Fonte (Tipografia)</label>
                         <select 
                             value={profileForm.fontFamily}
-                            onChange={(e) => setProfileForm({...profileForm, fontFamily: e.target.value})}
+                            onChange={(e) => {
+                                setProfileForm({...profileForm, fontFamily: e.target.value});
+                                handleSaveProfileData();
+                            }}
                             className="w-full p-3 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:text-white focus:outline-none focus:border-primary"
                         >
                             <option value="Inter">Inter (Moderna)</option>
@@ -1109,10 +1059,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <option value="Roboto">Roboto (Padrão)</option>
                         </select>
                     </div>
-
-                    <button onClick={handleSaveProfileData} className="w-full bg-primary text-white font-bold py-3 rounded-xl mt-4 flex items-center justify-center gap-2 hover:bg-primary-hover transition-colors">
-                        <Save size={18} /> Salvar Aparência
-                    </button>
                 </div>
             </div>
         );
@@ -1140,7 +1086,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <div className="flex justify-center mb-2">
                                 <div className="w-20 h-20 bg-gray-100 dark:bg-white/10 rounded-lg flex items-center justify-center relative cursor-pointer" onClick={() => serviceImageRef.current?.click()}>
                                     {editingService.image ? <img src={editingService.image} className="w-full h-full object-cover rounded-lg" /> : <ImageIcon size={24} className="text-gray-400"/>}
-                                    <input type="file" ref={serviceImageRef} onChange={handleServiceImageChange} className="hidden" accept="image/*" />
+                                    <input type="file" ref={serviceImageRef} onChange={handleServiceImageChange} className="hidden" />
                                 </div>
                             </div>
                             <input type="text" placeholder="Nome do Serviço" value={editingService.name} onChange={e => setEditingService({...editingService, name: e.target.value})} onBlur={() => handleSaveService(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
@@ -1211,7 +1157,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              <div className="flex justify-center mb-2">
                                 <div className="w-20 h-20 bg-gray-100 dark:bg-white/10 rounded-full flex items-center justify-center relative cursor-pointer overflow-hidden" onClick={() => professionalAvatarRef.current?.click()}>
                                     {editingProfessional.avatar ? <img src={editingProfessional.avatar} className="w-full h-full object-cover" /> : <User size={24} className="text-gray-400"/>}
-                                    <input type="file" ref={professionalAvatarRef} onChange={handleProfessionalAvatarChange} className="hidden" accept="image/*" />
+                                    <input type="file" ref={professionalAvatarRef} onChange={handleProfessionalAvatarChange} className="hidden" />
                                 </div>
                             </div>
                             <input type="text" placeholder="Nome" value={editingProfessional.name} onChange={e => setEditingProfessional({...editingProfessional, name: e.target.value})} onBlur={() => handleSaveProfessional(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
@@ -1291,7 +1237,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              <div className="flex justify-center mb-2">
                                 <div className="w-20 h-20 bg-gray-100 dark:bg-white/10 rounded-lg flex items-center justify-center relative cursor-pointer overflow-hidden" onClick={() => productImageRef.current?.click()}>
                                     {editingProduct.image ? <img src={editingProduct.image} className="w-full h-full object-cover" /> : <Package size={24} className="text-gray-400"/>}
-                                    <input type="file" ref={productImageRef} onChange={handleProductImageChange} className="hidden" accept="image/*" />
+                                    <input type="file" ref={productImageRef} onChange={handleProductImageChange} className="hidden" />
                                 </div>
                             </div>
                             <input type="text" placeholder="Nome do Produto" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} onBlur={() => handleSaveProduct(false)} className="w-full p-2 border rounded-lg bg-gray-50 text-gray-900 dark:bg-[#111] dark:border-white/10 dark:text-white" />
@@ -1477,10 +1423,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         );
                     })}
                 </div>
-                {/* Save button kept for visual confirmation/closing, but data is saved in real-time */}
-                <button onClick={handleSaveProfileData} className="w-full bg-primary text-white font-bold py-3 rounded-xl mt-6 flex items-center justify-center gap-2">
-                    <Save size={18} /> Salvar Horários
-                </button>
             </div>
         );
     }

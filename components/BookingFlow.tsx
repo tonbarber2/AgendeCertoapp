@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
@@ -14,7 +13,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { 
-  TIME_SLOTS, 
   getNextDays 
 } from '../constants';
 import { 
@@ -23,7 +21,9 @@ import {
   BookingStep, 
   DayOption, 
   UserDetails,
-  Appointment
+  Appointment,
+  BusinessHours,
+  DaySchedule
 } from '../types';
 
 interface BookingFlowProps {
@@ -36,6 +36,7 @@ interface BookingFlowProps {
   pixKey?: string;
   adminPhone?: string;
   appointments: Appointment[];
+  businessHours: BusinessHours;
 }
 
 export const BookingFlow: React.FC<BookingFlowProps> = ({ 
@@ -47,7 +48,8 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   preSelectedProId,
   pixKey = "000.000.000-00", // Default fallback
   adminPhone,
-  appointments
+  appointments,
+  businessHours
 }) => {
   // Helpers
   const dayOptions = getNextDays(14);
@@ -75,65 +77,85 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
 
   // Payment State
   const [paymentType, setPaymentType] = useState<'deposit' | 'full'>('deposit');
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isStepValid = () => {
     switch(step) {
       case BookingStep.SERVICE: return !!selectedService;
-      case BookingStep.PROFESSIONAL: return !!selectedProfessional;
       case BookingStep.DATETIME: return !!selectedDate && !!selectedTime;
       case BookingStep.DETAILS: return !!userDetails.name && userDetails.phone.length >= 10;
-      case BookingStep.PAYMENT: return !!proofFile;
-      default: return true;
+      default: return true; // Payment step is now always valid
     }
   };
+
+  const finalizeBooking = (withPayment: boolean) => {
+    if (!selectedService || !selectedTime || !selectedDate) return;
+
+    const newAppointment: Appointment = {
+      id: Date.now().toString(),
+      client: userDetails.name,
+      service: selectedService.name,
+      time: selectedTime,
+      date: selectedDate.displayDate,
+      status: 'pendente',
+      phone: userDetails.phone,
+      professional: selectedProfessional ? selectedProfessional.name : undefined
+    };
+
+    const adminPhoneClean = adminPhone?.replace(/\D/g, '') || '';
+
+    const messageParts = [
+      `Olá! Gostaria de confirmar meu agendamento:`,
+      `📅 *Data:* ${selectedDate.displayDate}`,
+      `⏰ *Horário:* ${selectedTime}`,
+      `✂️ *Serviço:* ${selectedService.name}`,
+    ];
+
+    if (selectedProfessional) {
+      messageParts.push(`👤 *Profissional:* ${selectedProfessional.name}`);
+    }
+    
+    messageParts.push(`*Cliente:* ${userDetails.name}`);
+
+    if (withPayment) {
+      const amountPaid = paymentType === 'deposit' ? selectedService?.deposit : selectedService?.price;
+      messageParts.push(`💰 *Valor a Pagar (PIX):* R$ ${amountPaid?.toFixed(2)}`);
+      messageParts.push(`\n*Vou realizar o pagamento e enviar o comprovante aqui.*`);
+    } else {
+       if (selectedService.price <= 0) {
+            messageParts.push(`\nEste é um serviço VIP e não possui custo. Aguardo a confirmação do profissional.`);
+       } else {
+            messageParts.push(`\nEste serviço não requer pagamento de sinal. O valor de R$ ${selectedService.price.toFixed(2)} será pago no local.`);
+       }
+    }
+
+    const message = messageParts.join('\n');
+
+    const whatsappUrl = `https://wa.me/55${adminPhoneClean}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    onConfirmBooking(newAppointment);
+    setStep(BookingStep.CONFIRMATION);
+    window.scrollTo(0, 0);
+  };
+
 
   const handleNext = () => {
     if (!isStepValid()) return;
 
     if (step === BookingStep.PAYMENT) {
-      // Finalize booking logic
-      const newAppointment: Appointment = {
-          id: Date.now().toString(),
-          client: userDetails.name,
-          service: selectedService!.name,
-          time: selectedTime!,
-          date: selectedDate.displayDate,
-          status: 'pendente', // Always pending until pro confirms
-          phone: userDetails.phone,
-          professional: selectedProfessional!.name // Save the professional name
-      };
-
-      // Generate WhatsApp Message for Admin
-      const adminPhoneClean = adminPhone?.replace(/\D/g, '') || '';
-      const amountPaid = paymentType === 'deposit' ? selectedService?.deposit : selectedService?.price;
-      
-      const message = `Olá! Gostaria de confirmar meu agendamento:
-📅 *Data:* ${selectedDate.displayDate}
-⏰ *Horário:* ${selectedTime}
-✂️ *Serviço:* ${selectedService!.name}
-👤 *Profissional:* ${selectedProfessional!.name}
-💰 *Valor Pago:* R$ ${amountPaid?.toFixed(2)}
-Nome: ${userDetails.name}
-
-*Segue meu comprovante de pagamento em anexo!* 👇`;
-
-      // Open WhatsApp
-      const whatsappUrl = `https://wa.me/55${adminPhoneClean}?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
-
-      onConfirmBooking(newAppointment);
-      setStep(BookingStep.CONFIRMATION);
-      window.scrollTo(0, 0);
+      finalizeBooking(true);
       return;
     }
 
+    if (step === BookingStep.DETAILS && (!selectedService || selectedService.price <= 0)) {
+       finalizeBooking(false);
+       return;
+    }
+
     let nextStep = step + 1;
-    // If we are at the service step AND a professional is already pre-selected from the link,
-    // skip the professional selection step.
-    if (step === BookingStep.SERVICE && selectedProfessional) {
-        nextStep = BookingStep.DATETIME;
+
+    if (step === BookingStep.SERVICE) {
+      nextStep = BookingStep.DATETIME; // Always skip to DateTime
     }
 
     setStep(nextStep as BookingStep);
@@ -142,10 +164,9 @@ Nome: ${userDetails.name}
 
   const handleBack = () => {
     let prevStep = step - 1;
-    // If we are at the DATETIME step and came from a pre-selected professional link,
-    // skip back to the SERVICE step.
-    if (step === BookingStep.DATETIME && preSelectedProId) {
-        prevStep = BookingStep.SERVICE;
+
+    if (step === BookingStep.DATETIME) {
+      prevStep = BookingStep.SERVICE; // Always go back to Service
     }
 
     if (prevStep >= 1) {
@@ -163,49 +184,84 @@ Nome: ${userDetails.name}
     });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setProofFile(e.target.files[0]);
+  // Helper function to generate time slots based on business hours
+  const generateTimeSlotsForDay = (daySchedule: DaySchedule, slotIncrement: number = 30): string[] => {
+    if (!daySchedule || !daySchedule.isOpen) {
+      return [];
     }
-  };
 
-  // Logic to calculate available time slots
-  const getAvailableSlots = () => {
-    return TIME_SLOTS.filter(time => {
-      const isTaken = appointments.some(apt => {
-        if (apt.date !== selectedDate.displayDate) return false;
-        if (apt.time !== time) return false;
-        if (apt.status === 'cancelado') return false;
+    const slots: string[] = [];
+    
+    const parseTime = (timeStr: string): Date => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const date = new Date();
+      date.setHours(hours, minutes, 0, 0);
+      return date;
+    };
 
-        if (apt.professional && selectedProfessional) {
-            return apt.professional === selectedProfessional.name;
-        }
-        
-        // If no professional is assigned to the appointment, it blocks the slot for everyone
-        if (!apt.professional) return true;
+    const formatTime = (date: Date): string => {
+      return date.toTimeString().slice(0, 5);
+    };
 
-        return false;
-      });
+    daySchedule.intervals.forEach(interval => {
+      let currentTime = parseTime(interval.start);
+      const endTime = parseTime(interval.end);
 
-      return !isTaken;
+      while (currentTime < endTime) {
+        slots.push(formatTime(currentTime));
+        currentTime.setMinutes(currentTime.getMinutes() + slotIncrement);
+      }
     });
+
+    return slots;
   };
 
-  const availableSlots = getAvailableSlots();
+  // Logic to calculate available time slots based on business hours and existing appointments
+  const getAvailableAndAllSlots = () => {
+    const dayIndex = selectedDate.date.getDay();
+    const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dayIndex] as keyof BusinessHours;
+    const daySchedule = businessHours[dayName];
+    
+    const allPossibleSlots = generateTimeSlotsForDay(daySchedule);
+
+    // Total capacity is the number of professionals, or 1 if none are registered.
+    const capacity = professionals.length > 0 ? professionals.length : 1;
+
+    const available = allPossibleSlots.filter(time => {
+      // Find all confirmed/pending appointments at this specific time and date
+      const appointmentsAtTime = appointments.filter(apt => 
+          apt.date === selectedDate.displayDate &&
+          apt.time === time &&
+          apt.status !== 'cancelado'
+      );
+
+      // If a specific professional is selected...
+      if (selectedProfessional) {
+          // ... the slot is taken only if THAT professional has an appointment.
+          const isProfessionalBusy = appointmentsAtTime.some(apt => apt.professional === selectedProfessional.name);
+          return !isProfessionalBusy;
+      } else {
+          // If no professional is selected, the slot is available if the number of appointments is less than the total capacity.
+          return appointmentsAtTime.length < capacity;
+      }
+    });
+
+    return { allSlots: allPossibleSlots, availableSlots: available };
+  };
+
+  const { allSlots, availableSlots } = getAvailableAndAllSlots();
 
   // Renderers for each step
   const renderStepIndicator = () => {
     const steps = [
-      { num: 1, label: 'Serviço' },
-      { num: 2, label: 'Profissional' },
-      { num: 3, label: 'Horário' },
-      { num: 4, label: 'Dados' },
-      { num: 5, label: 'Pagamento' },
+      { num: BookingStep.SERVICE, label: 'Serviço' },
+      { num: BookingStep.DATETIME, label: 'Horário' },
+      { num: BookingStep.DETAILS, label: 'Dados' },
+      { num: BookingStep.PAYMENT, label: 'Pagamento' },
     ];
     
-    // Filter out professional step if pre-selected
-    const visibleSteps = preSelectedProId ? steps.filter(s => s.num !== 2) : steps;
-    const currentStepAdjusted = preSelectedProId && step > 2 ? step - 1 : step;
+    const currentStepIndex = steps.findIndex(s => s.num === step);
+    const progressPercentage = currentStepIndex >= 0 ? (currentStepIndex / (steps.length - 1)) * 100 : 0;
     
     return (
       <div className="w-full bg-white dark:bg-[#0a0a0a] pt-6 pb-4 px-4 shadow-sm mb-6 sticky top-0 z-10 transition-colors border-b border-transparent dark:border-white/5">
@@ -213,10 +269,10 @@ Nome: ${userDetails.name}
           <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200 dark:bg-white/10 -z-10 rounded-full"></div>
           <div 
             className="absolute top-1/2 left-0 h-1 bg-primary -z-10 rounded-full transition-all duration-300 ease-out"
-            style={{ width: `${((currentStepAdjusted - 1) / (visibleSteps.length -1)) * 100}%` }}
+            style={{ width: `${progressPercentage}%` }}
           ></div>
 
-          {visibleSteps.map((s) => (
+          {steps.map((s, index) => (
             <div key={s.num} className="flex flex-col items-center">
               <div 
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-300 border-2 ${
@@ -225,7 +281,7 @@ Nome: ${userDetails.name}
                     : 'bg-white dark:bg-[#0a0a0a] border-gray-300 dark:border-white/20 text-gray-400'
                 }`}
               >
-                {step > s.num ? <CheckCircle size={14} /> : (preSelectedProId && s.num > 2 ? s.num - 1 : s.num)}
+                {step > s.num ? <CheckCircle size={14} /> : index + 1}
               </div>
               <span className={`text-[10px] mt-1 font-medium ${step >= s.num ? 'text-primary' : 'text-gray-400'}`}>
                 {s.label}
@@ -272,48 +328,13 @@ Nome: ${userDetails.name}
               <span className="text-sm font-medium text-c-list-info dark:text-gray-400 flex items-center gap-1">
                 <Clock size={14} /> {service.duration} min
               </span>
-              <span className="font-bold text-c-list-price">R$ {service.price.toFixed(2)}</span>
+              <span className="font-bold text-c-list-price">
+                {service.price > 0 ? `R$ ${service.price.toFixed(2)}` : 'A consultar'}
+              </span>
             </div>
           </div>
         </div>
       ))}
-    </div>
-  );
-
-  const renderProfessionals = () => (
-    <div className="px-4 pb-24 max-w-2xl mx-auto">
-      <h2 className="text-xl font-bold text-c-text-primary dark:text-white mb-4">Quem vai te atender?</h2>
-      {professionals.length === 0 ? (
-          <div className="text-center p-8 bg-white dark:bg-[#0a0a0a] rounded-xl border dark:border-white/5">
-              <p className="text-gray-500">Nenhum profissional disponível no momento.</p>
-          </div>
-      ) : (
-      <div className="space-y-3">
-        {professionals.map(pro => (
-          <div 
-            key={pro.id}
-            onClick={() => setSelectedProfessional(pro)}
-            className={`bg-white dark:bg-[#0a0a0a] p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${
-              selectedProfessional?.id === pro.id 
-                ? 'border-primary bg-orange-50 dark:bg-white/5' 
-                : 'border-transparent shadow-sm hover:bg-gray-50 dark:hover:bg-white/5 dark:border-white/5'
-            }`}
-          >
-            <div className="flex items-center gap-4">
-              <img src={pro.avatar} alt={pro.name} className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-white/10 shadow-sm" />
-              <div>
-                <h3 className="font-semibold text-c-list-title dark:text-white">{pro.name}</h3>
-                <p className="text-sm text-c-list-info dark:text-gray-400">{pro.role}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded-lg">
-              <Star size={14} className="text-yellow-500 fill-current" />
-              <span className="text-sm font-bold text-yellow-700 dark:text-yellow-400">{pro.rating}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      )}
     </div>
   );
 
@@ -344,7 +365,7 @@ Nome: ${userDetails.name}
 
       <h2 className="text-xl font-bold text-c-text-primary dark:text-white mb-4">Horários disponíveis</h2>
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-        {TIME_SLOTS.map(time => {
+        {allSlots.map(time => {
           const isAvailable = availableSlots.includes(time);
           return (
             <button
@@ -364,7 +385,9 @@ Nome: ${userDetails.name}
           );
         })}
       </div>
-      {availableSlots.length === 0 && (
+      {allSlots.length === 0 ? (
+          <p className="text-center text-gray-500 text-sm mt-4">Nenhum horário de funcionamento para esta data.</p>
+      ) : availableSlots.length === 0 && (
           <p className="text-center text-gray-500 text-sm mt-4">Nenhum horário disponível para esta data.</p>
       )}
     </div>
@@ -410,7 +433,7 @@ Nome: ${userDetails.name}
         <h3 className="font-semibold text-orange-900 dark:text-primary mb-2">Resumo do Agendamento</h3>
         <ul className="space-y-2 text-sm text-orange-800 dark:text-gray-300">
           <li className="flex justify-between"><span>Serviço:</span> <b>{selectedService?.name}</b></li>
-          <li className="flex justify-between"><span>Profissional:</span> <b>{selectedProfessional?.name}</b></li>
+          {selectedProfessional && <li className="flex justify-between"><span>Profissional:</span> <b>{selectedProfessional.name}</b></li>}
           <li className="flex justify-between"><span>Data:</span> <b>{selectedDate?.displayDate} às {selectedTime}</b></li>
           <li className="flex justify-between border-t border-orange-200 dark:border-white/10 pt-2 mt-2 text-lg font-bold">
             <span>Total:</span> <span>R$ {selectedService?.price.toFixed(2)}</span>
@@ -484,45 +507,15 @@ Nome: ${userDetails.name}
                 <span className="text-2xl font-bold text-primary">R$ {amountToPay.toFixed(2)}</span>
             </div>
         </div>
-
-        {/* Upload Proof */}
-        <div className="bg-white dark:bg-[#0a0a0a] p-6 rounded-xl shadow-sm border border-gray-100 dark:border-white/5">
-             <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-2">
-                 <Upload size={18} /> Anexar Comprovante
-                 <span className="text-red-500 text-xs font-normal">* Obrigatório</span>
-             </h3>
-             <div 
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all ${
-                    proofFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-300 dark:border-white/10 hover:border-primary hover:bg-gray-50 dark:hover:bg-white/5'
-                }`}
-             >
-                 {proofFile ? (
-                     <>
-                        <CheckCircle size={32} className="text-green-500 mb-2" />
-                        <p className="font-medium text-green-700 dark:text-green-400">{proofFile.name}</p>
-                        <p className="text-xs text-gray-500 mt-1">Clique para alterar</p>
-                     </>
-                 ) : (
-                     <>
-                        <Upload size={32} className="text-gray-400 mb-2" />
-                        <p className="font-medium text-gray-600 dark:text-gray-300">Clique para selecionar o comprovante</p>
-                        <p className="text-xs text-gray-400 mt-1">Imagens ou PDF</p>
-                     </>
-                 )}
-                 <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange} 
-                    className="hidden" 
-                    accept="image/*,application/pdf"
-                 />
-             </div>
-             <p className="text-xs text-gray-400 mt-4 text-center">
-                 Ao clicar em finalizar, você será redirecionado para o WhatsApp para enviar este comprovante.
-             </p>
+        
+        {/* Next Step Info */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/50 mt-6 text-left flex gap-3">
+            <AlertCircle className="text-blue-500 flex-shrink-0 mt-1" size={24} />
+            <div className="text-sm text-blue-800 dark:text-blue-300">
+                <p className="font-bold mb-1">Próximo Passo</p>
+                <p>Ao finalizar, abriremos uma conversa no WhatsApp para você enviar o comprovante do PIX e confirmar seu horário.</p>
+            </div>
         </div>
-
       </div>
     );
   };
@@ -553,7 +546,7 @@ Nome: ${userDetails.name}
           <img src={selectedProfessional?.avatar} className="w-12 h-12 rounded-full" alt="pro" />
           <div className="text-left">
             <p className="font-bold text-c-list-title dark:text-white">{selectedService?.name}</p>
-            <p className="text-sm text-c-list-info dark:text-gray-400">com {selectedProfessional?.name}</p>
+            {selectedProfessional && <p className="text-sm text-c-list-info dark:text-gray-400">com {selectedProfessional.name}</p>}
           </div>
         </div>
         <div className="flex justify-between items-center text-gray-800 dark:text-gray-300 font-medium">
@@ -575,7 +568,6 @@ Nome: ${userDetails.name}
           setSelectedProfessional(null);
           setSelectedTime(null);
           setUserDetails({name: '', phone: '', notes: ''});
-          setProofFile(null);
           setPaymentType('deposit');
           window.scrollTo(0, 0);
         }}
@@ -606,7 +598,6 @@ Nome: ${userDetails.name}
 
       <div className="max-w-3xl mx-auto pt-4">
         {step === BookingStep.SERVICE && renderServices()}
-        {step === BookingStep.PROFESSIONAL && renderProfessionals()}
         {step === BookingStep.DATETIME && renderDateTime()}
         {step === BookingStep.DETAILS && renderDetails()}
         {step === BookingStep.PAYMENT && renderPayment()}
@@ -632,7 +623,7 @@ Nome: ${userDetails.name}
                   : 'bg-gray-300 dark:bg-white/5 dark:text-gray-500 cursor-not-allowed'
               }`}
             >
-              {step === BookingStep.PAYMENT ? 'Finalizar e Enviar Comprovante' : 'Continuar'}
+              {step === BookingStep.PAYMENT ? 'Finalizar e Abrir WhatsApp' : 'Continuar'}
               {step !== BookingStep.PAYMENT && <ChevronRight size={20} />}
             </button>
           </div>
