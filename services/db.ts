@@ -1,4 +1,3 @@
-
 import { AdminUser, Appointment, BusinessProfile, Professional, Service, PlanType, Product, ClientPlan } from "../types";
 import { SERVICES as DEFAULT_SERVICES, PROFESSIONALS as DEFAULT_PROFESSIONALS, DEFAULT_BUSINESS_HOURS } from "../constants";
 import { firebaseConfig } from './firebaseConfig';
@@ -328,57 +327,3 @@ export const db = {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 };
-
-// --- Função para deletar usuário (chamada uma vez para limpar) ---
-(async function deleteLegacyAdmin() {
-    const ADMIN_ID = 'admin_user_ton_01';
-    const ADMIN_EMAIL = 'ton222418@gmail.com';
-
-    try {
-        const userDocRef = doc(firestore, "users", ADMIN_ID);
-        const userDoc = await getDoc(userDocRef);
-        
-        // Verifica se o documento existe e se o email corresponde
-        if (userDoc.exists() && userDoc.data().email === ADMIN_EMAIL) {
-            const storeDocRef = doc(firestore, "stores", ADMIN_ID);
-            
-            // Inicia um batch para garantir a atomicidade
-            const batch = writeBatch(firestore);
-            batch.delete(userDocRef);
-            batch.delete(storeDocRef);
-            
-            await batch.commit();
-            console.log(`Legacy admin user ${ADMIN_EMAIL} and their store data have been successfully deleted.`);
-        }
-    } catch (error) {
-        console.error('Error during cleanup of legacy admin user:', error);
-    }
-})();
-
-// --- Função para deletar usuário uelton.cs619@gmail.com (chamada uma vez) ---
-(async function deleteUeltonAccount() {
-    const USER_EMAIL = 'uelton.cs619@gmail.com';
-
-    try {
-        const usersRef = collection(firestore, "users");
-        const q = query(usersRef, where("email", "==", USER_EMAIL));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            const userDoc = querySnapshot.docs[0];
-            const userId = userDoc.id;
-            const storeDocRef = doc(firestore, "stores", userId);
-
-            const batch = writeBatch(firestore);
-            batch.delete(userDoc.ref);
-            batch.delete(storeDocRef);
-
-            await batch.commit();
-            console.log(`User ${USER_EMAIL} and their store data have been successfully deleted.`);
-        } else {
-            console.log(`User with email ${USER_EMAIL} not found for deletion.`);
-        }
-    } catch (error) {
-        console.error(`Error deleting user ${USER_EMAIL}:`, error);
-    }
-})();

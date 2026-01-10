@@ -1,11 +1,11 @@
 // Configuração do Firebase.
-// Estes valores foram obtidos no painel do seu projeto Firebase.
+// Estes valores devem ser configurados como variáveis de ambiente no seu provedor de hospedagem (ex: Vercel).
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyBnH4Kc3hrVakO6spzLjjQVaKIuP1X30yc",
-  authDomain: "teste-agendecerto.firebaseapp.com",
-  projectId: "teste-agendecerto",
-  storageBucket: "teste-agendecerto.appspot.com",
-  messagingSenderId: "32913358656",
-  appId: "1:32913358656:web:a88892ac453d6067f404a5"
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
 };
