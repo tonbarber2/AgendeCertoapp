@@ -1,12 +1,7 @@
 import { AdminUser, Appointment, BusinessProfile, Professional, Service, PlanType, Product, ClientPlan } from "../types";
 import { SERVICES as DEFAULT_SERVICES, PROFESSIONALS as DEFAULT_PROFESSIONALS, DEFAULT_BUSINESS_HOURS } from "../constants";
-import { firebaseConfig } from './firebaseConfig';
-import { initializeApp } from "firebase/app";
+import { getFirebase } from './firebase';
 import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
-
-// Inicializa o Firebase
-const app = initializeApp(firebaseConfig);
-const firestore = getFirestore(app);
 
 // Default Profile Template (Premium Gold Theme)
 const DEFAULT_PROFILE: BusinessProfile = {
@@ -52,11 +47,8 @@ export const db = {
   // --- Auth Methods ---
 
   async register(name: string, email: string, password: string, businessName: string): Promise<AdminUser> {
+    const { firestore } = getFirebase();
     await this.delay(800);
-
-    if (email.toLowerCase() === 'ton222418@gmail.com') {
-      throw new Error("Este e-mail não pode ser utilizado. Por favor, escolha outro.");
-    }
     
     // Verifica se o email já existe
     const usersRef = collection(firestore, "users");
@@ -108,11 +100,8 @@ export const db = {
   },
 
   async login(email: string, password: string): Promise<AdminUser> {
+    const { firestore } = getFirebase();
     await this.delay(800);
-    
-    if (email.toLowerCase() === 'ton222418@gmail.com') {
-        throw new Error("Credenciais inválidas.");
-    }
 
     const usersRef = collection(firestore, "users");
     const q = query(usersRef, where("email", "==", email));
@@ -155,6 +144,7 @@ export const db = {
   },
   
   async getUserById(userId: string): Promise<AdminUser | null> {
+    const { firestore } = getFirebase();
     const userDocRef = doc(firestore, "users", userId);
     const userDoc = await getDoc(userDocRef);
 
@@ -174,6 +164,7 @@ export const db = {
   },
 
   async requestPasswordReset(email: string): Promise<string> {
+    const { firestore } = getFirebase();
     await this.delay(1000);
     
     const usersRef = collection(firestore, "users");
@@ -204,6 +195,7 @@ export const db = {
   },
 
   async confirmPasswordReset(email: string, code: string, newPassword: string): Promise<void> {
+      const { firestore } = getFirebase();
       await this.delay(1000);
       
       if (recoveryCodes.get(email) !== code) {
@@ -227,6 +219,7 @@ export const db = {
   },
 
   async renewSubscription(userId: string, plan: PlanType): Promise<AdminUser> {
+      const { firestore } = getFirebase();
       await this.delay(1000);
       const userDocRef = doc(firestore, "users", userId);
       const userDoc = await getDoc(userDocRef);
@@ -257,6 +250,7 @@ export const db = {
   // --- Data Methods (Sync) ---
 
   async loadData(userId: string): Promise<AppData> {
+    const { firestore } = getFirebase();
     await this.delay(500);
     const docRef = doc(firestore, "stores", userId);
     const docSnap = await getDoc(docRef);
@@ -275,6 +269,7 @@ export const db = {
   },
 
   async saveData(userId: string, data: AppData): Promise<void> {
+    const { firestore } = getFirebase();
     const docRef = doc(firestore, "stores", userId);
     await setDoc(docRef, data);
   },
@@ -292,6 +287,7 @@ export const db = {
   },
 
   async loadPublicData(storeId?: string | null): Promise<AppData> {
+    const { firestore } = getFirebase();
     if (!storeId) {
       // Se não houver storeId, retorna dados padrão para evitar erros.
       return {
