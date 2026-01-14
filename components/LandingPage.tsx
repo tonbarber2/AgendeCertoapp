@@ -1,27 +1,20 @@
-
 import React, { useState } from 'react';
-import { Bell, Moon, Sun, Calendar, ChevronLeft } from 'lucide-react';
+import { Bell, Moon, Sun, Calendar } from 'lucide-react';
 import { Theme, BusinessProfile, BusinessHours } from '../types';
 import { Logo } from './Logo';
 
 interface LandingPageProps {
   onStartBooking: (date: Date) => void;
-  onGoToAdmin: () => void;
   toggleTheme: () => void;
   currentTheme: Theme;
   businessProfile: BusinessProfile;
-  isLoggedIn?: boolean;
-  isPublicView?: boolean;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ 
   onStartBooking, 
-  onGoToAdmin,
   toggleTheme,
   currentTheme,
   businessProfile,
-  isLoggedIn = false,
-  isPublicView = false
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0]
@@ -45,6 +38,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   ];
   const todayIndex = new Date().getDay();
 
+  if (businessProfile.name === 'Loja não encontrada') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-[#050505] text-center p-4">
+        <Logo size={80} />
+        <h1 className="mt-8 text-2xl font-bold text-c-text-primary dark:text-white">Loja não encontrada</h1>
+        <p className="mt-2 text-c-text-secondary dark:text-gray-400">
+          Parece que a URL de agendamento está incorreta ou incompleta.
+        </p>
+        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
+          Por favor, verifique o link que você recebeu ou entre em contato com o estabelecimento.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#050505] font-sans transition-colors relative">
       {/* Background Image (If set) */}
@@ -62,38 +70,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Header */}
       <header className="p-4 flex items-center justify-between relative z-10">
-         <div 
-           className="flex items-center gap-3"
-           onClick={!isLoggedIn ? onGoToAdmin : undefined} 
-           style={{ cursor: !isLoggedIn ? 'pointer' : 'default' }}
-           title={!isLoggedIn ? 'Acessar painel de administrador' : ''}
-          >
-            <Logo size={36} />
-            <h1 className="font-bold text-xl text-c-text-primary dark:text-white hidden sm:block">Agende<span className="text-primary">Certo</span></h1>
+         <div className="flex items-center gap-2">
+            <Logo size={40} />
          </div>
          <div className="flex items-center gap-3">
-            <button className="p-2 bg-white dark:bg-[#0a0a0a] shadow-sm rounded-full text-gray-600 dark:text-gray-300 border border-transparent dark:border-white/5">
+            <button className="p-3 bg-gray-200/70 dark:bg-gray-800/70 shadow-md rounded-xl text-gray-700 dark:text-gray-300 border border-transparent dark:border-white/5 backdrop-blur-sm">
                 <Bell size={20} />
             </button>
             <button 
                 onClick={toggleTheme}
-                className="p-2 bg-white dark:bg-[#0a0a0a] shadow-sm rounded-full text-gray-600 dark:text-gray-300 border border-transparent dark:border-white/5"
+                className="p-3 bg-gray-200/70 dark:bg-gray-800/70 shadow-md rounded-xl text-gray-700 dark:text-gray-300 border border-transparent dark:border-white/5 backdrop-blur-sm"
             >
                 {currentTheme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-            {!isPublicView && (
-              <button 
-                  onClick={onGoToAdmin}
-                  className={`border text-xs font-bold px-4 py-2 rounded-full transition-all flex items-center gap-2 ${
-                    isLoggedIn 
-                      ? 'bg-primary text-white border-primary hover:bg-primary-hover shadow-lg' 
-                      : 'border-primary text-primary hover:bg-primary hover:text-white'
-                  }`}
-              >
-                  {isLoggedIn && <ChevronLeft size={14} />}
-                  {isLoggedIn ? 'VOLTAR AO PAINEL' : 'ACESSAR PAINEL ADM'}
-              </button>
-            )}
         </div>
       </header>
 
@@ -129,7 +118,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
 
         {/* Booking Card */}
-        <div className="w-full max-w-sm bg-dark-card dark:bg-[#0a0a0a] rounded-3xl p-8 shadow-2xl relative overflow-hidden text-white border border-transparent dark:border-white/5">
+        <div className="w-full max-w-sm bg-gray-800 dark:bg-[#0a0a0a] rounded-3xl p-8 shadow-2xl relative overflow-hidden text-white border border-transparent dark:border-white/5">
             {/* Card Content */}
             <div className="relative z-10 flex flex-col items-center">
                 <div className="w-16 h-16 rounded-full bg-gray-800/50 border-2 border-primary flex items-center justify-center mb-4 shadow-lg backdrop-blur-sm">

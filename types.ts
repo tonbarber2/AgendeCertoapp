@@ -1,8 +1,4 @@
 
-
-
-
-
 export interface Service {
   id: string;
   name: string;
@@ -10,7 +6,6 @@ export interface Service {
   price: number;
   duration: number; // in minutes
   deposit?: number; // Sinal de pagamento
-  image: string;
 }
 
 export interface ServiceCategory {
@@ -161,5 +156,5 @@ export interface AdminUser {
   subscription: Subscription;
 }
 
-export type ViewState = 'LANDING' | 'BOOKING_FLOW' | 'ADMIN' | 'AUTH';
+export type ViewState = 'AUTH' | 'ADMIN' | 'SUBSCRIPTION' | 'LANDING' | 'BOOKING_FLOW';
 export type Theme = 'light' | 'dark';

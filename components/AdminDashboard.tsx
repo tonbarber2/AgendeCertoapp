@@ -129,7 +129,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const professionalAvatarRef = useRef<HTMLInputElement>(null);
-  const serviceImageRef = useRef<HTMLInputElement>(null);
   const productImageRef = useRef<HTMLInputElement>(null);
 
   // --- States for Inline Editing (Buffer Objects) ---
@@ -225,18 +224,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       reader.onloadend = () => {
           const updatedPro = { ...editingProfessional, avatar: reader.result as string };
           setEditingProfessional(updatedPro);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleServiceImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && editingService) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-          const updatedService = { ...editingService, image: reader.result as string };
-          setEditingService(updatedService);
       };
       reader.readAsDataURL(file);
     }
@@ -881,7 +868,7 @@ if (profileView === 'servicos') {
             <button 
                 onClick={() => setEditingService({ 
                     id: Date.now().toString(), name: '', description: '', price: 0, 
-                    duration: 30, image: '', deposit: 0 
+                    duration: 30, deposit: 0 
                 })} 
                 className="w-full py-3 bg-primary/10 text-primary rounded-xl border-2 border-dashed border-primary/30 font-bold flex items-center justify-center gap-2 mb-4 hover:bg-primary/20 transition-colors"
             >
@@ -894,18 +881,7 @@ if (profileView === 'servicos') {
                         <button onClick={() => setEditingService(null)}><X size={20} className="text-gray-400"/></button>
                     </div>
                     <div className="space-y-4">
-                        <div className="flex items-center gap-4">
-                            <div className="relative group cursor-pointer" onClick={() => serviceImageRef.current?.click()}>
-                                <div className="w-20 h-20 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center overflow-hidden border-2 border-dashed">
-                                    {editingService.image ? <img src={editingService.image} alt="Imagem Serviço" className="w-full h-full object-cover"/> : <Camera size={24} className="text-gray-400"/>}
-                                </div>
-                                <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Edit2 size={16} className="text-white"/></div>
-                            </div>
-                            <input type="file" ref={serviceImageRef} onChange={handleServiceImageChange} accept="image/*" className="hidden" />
-                            <div className="flex-1">
-                                <input type="text" placeholder="Nome do Serviço" value={editingService.name} onChange={e => handleServiceFieldChange('name', e.target.value)} className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-[#111] border-gray-200 dark:border-white/10 text-sm" />
-                            </div>
-                        </div>
+                        <input type="text" placeholder="Nome do Serviço" value={editingService.name} onChange={e => handleServiceFieldChange('name', e.target.value)} className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-[#111] border-gray-200 dark:border-white/10 text-sm" />
                         <textarea placeholder="Descrição" value={editingService.description} onChange={e => handleServiceFieldChange('description', e.target.value)} className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-[#111] border-gray-200 dark:border-white/10 text-sm h-20 resize-none" />
                         <div className="grid grid-cols-2 gap-3">
                              <input type="number" placeholder="Preço (R$)" value={editingService.price} onChange={e => handleServiceFieldChange('price', parseFloat(e.target.value) || 0)} className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-[#111] border-gray-200 dark:border-white/10 text-sm" />
@@ -920,16 +896,17 @@ if (profileView === 'servicos') {
             )}
             <div className="space-y-3">
                 {services.map(service => (
-                    <div key={service.id} className="bg-white dark:bg-[#0a0a0a] p-3 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 flex items-start justify-between gap-3">
+                    <div key={service.id} className="bg-white dark:bg-[#0a0a0a] p-3 rounded-xl shadow-sm border border-gray-100 dark:border-white/5 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 flex-1">
-                            <img src={service.image} alt={service.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0"/>
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center flex-shrink-0">
+                                <Briefcase size={20} className="text-gray-400" />
+                            </div>
                             <div className="min-w-0">
                                 <h3 className="font-bold text-gray-800 dark:text-white truncate">{service.name}</h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{service.duration} min • {service.price > 0 ? `R$ ${service.price.toFixed(2)}` : 'A consultar'}</p>
-                                {service.deposit && service.deposit > 0 && (<p className="text-xs text-primary font-semibold mt-1">Sinal: R$ {service.deposit.toFixed(2)}</p>)}
                             </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                        <div className="flex items-center gap-2">
                             <button onClick={() => setEditingService(service)} className="p-2 bg-gray-100 dark:bg-white/5 rounded-lg text-gray-500 hover:text-primary transition-colors"><Edit2 size={16} /></button>
                             <button onClick={() => handleDeleteService(service.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-500 hover:text-red-700 transition-colors"><Trash2 size={16} /></button>
                         </div>

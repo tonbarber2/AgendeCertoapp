@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
@@ -39,6 +38,45 @@ interface BookingFlowProps {
   appointments: Appointment[];
   businessHours: BusinessHours;
 }
+
+// Helper para converter tempo (HH:MM) para minutos.
+const timeToMinutes = (timeStr: string): number => {
+    if (!timeStr || !timeStr.includes(':')) return 0;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+};
+
+// Helper para gerar horários com base no expediente
+const generateTimeSlotsForDay = (daySchedule: DaySchedule, slotIncrement: number = 30): string[] => {
+  if (!daySchedule || !daySchedule.isOpen) {
+    return [];
+  }
+
+  const slots: string[] = [];
+  
+  const parseTime = (timeStr: string): Date => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
+  const formatTime = (date: Date): string => {
+    return date.toTimeString().slice(0, 5);
+  };
+
+  daySchedule.intervals.forEach(interval => {
+    let currentTime = parseTime(interval.start);
+    const endTime = parseTime(interval.end);
+
+    while (currentTime < endTime) {
+      slots.push(formatTime(currentTime));
+      currentTime.setMinutes(currentTime.getMinutes() + slotIncrement);
+    }
+  });
+
+  return slots;
+};
 
 export const BookingFlow: React.FC<BookingFlowProps> = ({ 
   initialDate, 
@@ -105,33 +143,37 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     const adminPhoneClean = adminPhone?.replace(/\D/g, '') || '';
 
     const messageParts = [
-      `Olá! Gostaria de confirmar meu agendamento:`,
-      `📅 *Data:* ${selectedDate.displayDate}`,
-      `⏰ *Horário:* ${selectedTime}`,
-      `✂️ *Serviço:* ${selectedService.name}`,
+      `*NOVA SOLICITAÇÃO DE AGENDAMENTO* 🚀`,
+      `-----------------------------------`,
+      `👤 *Cliente:* ${userDetails.name}`,
+      `📱 *Contato:* ${userDetails.phone}`,
+      `-----------------------------------`,
+      `✨ *Serviço:* ${selectedService.name}`,
     ];
-
-    if (selectedProfessional) {
-      messageParts.push(`👤 *Profissional:* ${selectedProfessional.name}`);
-    }
     
-    messageParts.push(`*Cliente:* ${userDetails.name}`);
+    if (selectedProfessional) {
+      messageParts.push(`💇‍♂️ *Profissional:* ${selectedProfessional.name}`);
+    }
+
+    messageParts.push(`🗓️ *Data:* ${selectedDate.displayDate} às *${selectedTime}*`);
 
     if (withPayment) {
-      const amountPaid = paymentType === 'deposit' ? selectedService?.deposit : selectedService?.price;
-      messageParts.push(`💰 *Valor a Pagar (PIX):* R$ ${amountPaid?.toFixed(2)}`);
-      messageParts.push(`\n*Vou realizar o pagamento e enviar o comprovante aqui.*`);
+        const amountPaid = paymentType === 'deposit' ? selectedService?.deposit : selectedService?.price;
+        messageParts.push(`-----------------------------------`);
+        messageParts.push(`💰 *Pagamento (PIX):* R$ ${amountPaid?.toFixed(2)}`);
+        messageParts.push(`\n*Olá! Este é meu pedido de agendamento. Realizarei o pagamento e enviarei o comprovante em seguida para confirmar.* 👍`);
     } else {
-       if (selectedService.price <= 0) {
-            messageParts.push(`\nEste é um serviço VIP e não possui custo. Aguardo a confirmação do profissional.`);
-       } else {
-            messageParts.push(`\nEste serviço não requer pagamento de sinal. O valor de R$ ${selectedService.price.toFixed(2)} será pago no local.`);
-       }
+        messageParts.push(`-----------------------------------`);
+        if (selectedService.price <= 0) {
+            messageParts.push(`\n*Olá! Este é meu pedido de agendamento para um serviço VIP (sem custo). Aguardo sua confirmação.*`);
+        } else {
+            messageParts.push(`\n*Olá! Este é meu pedido de agendamento. O pagamento de R$ ${selectedService.price.toFixed(2)} será feito no local.*`);
+        }
     }
 
     const message = messageParts.join('\n');
-
     const whatsappUrl = `https://wa.me/55${adminPhoneClean}?text=${encodeURIComponent(message)}`;
+    
     window.open(whatsappUrl, '_blank');
 
     onConfirmBooking(newAppointment);
@@ -148,7 +190,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
       return;
     }
 
-    if (step === BookingStep.DETAILS && (!selectedService || selectedService.price <= 0)) {
+    if (step === BookingStep.DETAILS && (!selectedService || selectedService.price <= 0 || !selectedService.deposit || selectedService.deposit <= 0)) {
        finalizeBooking(false);
        return;
     }
@@ -185,65 +227,72 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     });
   };
 
-  // Helper function to generate time slots based on business hours
-  const generateTimeSlotsForDay = (daySchedule: DaySchedule, slotIncrement: number = 30): string[] => {
-    if (!daySchedule || !daySchedule.isOpen) {
-      return [];
+  const getAvailableAndAllSlots = () => {
+    if (!selectedService) {
+      return { allSlots: [], availableSlots: [] };
     }
 
-    const slots: string[] = [];
-    
-    const parseTime = (timeStr: string): Date => {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      const date = new Date();
-      date.setHours(hours, minutes, 0, 0);
-      return date;
-    };
-
-    const formatTime = (date: Date): string => {
-      return date.toTimeString().slice(0, 5);
-    };
-
-    daySchedule.intervals.forEach(interval => {
-      let currentTime = parseTime(interval.start);
-      const endTime = parseTime(interval.end);
-
-      while (currentTime < endTime) {
-        slots.push(formatTime(currentTime));
-        currentTime.setMinutes(currentTime.getMinutes() + slotIncrement);
-      }
-    });
-
-    return slots;
-  };
-
-  // Logic to calculate available time slots based on business hours and existing appointments
-  const getAvailableAndAllSlots = () => {
     const dayIndex = selectedDate.date.getDay();
     const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dayIndex] as keyof BusinessHours;
     const daySchedule = businessHours[dayName];
     
     const allPossibleSlots = generateTimeSlotsForDay(daySchedule);
 
-    // Total capacity is the number of professionals, or 1 if none are registered.
-    const capacity = professionals.length > 0 ? professionals.length : 1;
+    const dailyAppointments = appointments
+      .filter(apt => apt.date === selectedDate.displayDate && apt.status !== 'cancelado')
+      .map(apt => {
+          const service = services.find(s => s.name === apt.service);
+          const duration = service?.duration || 30;
+          const start = timeToMinutes(apt.time);
+          return {
+              ...apt,
+              startMinutes: start,
+              endMinutes: start + duration,
+          };
+      });
+
+    const now = new Date();
+    const isToday = selectedDate.date.toDateString() === now.toDateString();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     const available = allPossibleSlots.filter(time => {
-      // Find all confirmed/pending appointments at this specific time and date
-      const appointmentsAtTime = appointments.filter(apt => 
-          apt.date === selectedDate.displayDate &&
-          apt.time === time &&
-          apt.status !== 'cancelado'
-      );
+      const slotStartMinutes = timeToMinutes(time);
 
-      // If a specific professional is selected...
+      // Verificação 0: Se for hoje, impede agendamentos em horários que já passaram.
+      if (isToday && slotStartMinutes < currentMinutes) {
+        return false;
+      }
+
+      const slotEndMinutes = slotStartMinutes + selectedService.duration;
+
+      const endsWithinHours = daySchedule.intervals.some(interval => 
+          slotStartMinutes >= timeToMinutes(interval.start) && slotEndMinutes <= timeToMinutes(interval.end)
+      );
+      if (!daySchedule.isOpen || !endsWithinHours) {
+          return false;
+      }
+      
       if (selectedProfessional) {
-          // ... the slot is taken only if THAT professional has an appointment.
-          const isProfessionalBusy = appointmentsAtTime.some(apt => apt.professional === selectedProfessional.name);
+          const isProfessionalBusy = dailyAppointments.some(apt => 
+              apt.professional === selectedProfessional.name &&
+              apt.startMinutes < slotEndMinutes &&
+              apt.endMinutes > slotStartMinutes
+          );
           return !isProfessionalBusy;
       } else {
-          // If no professional is selected, the slot is available if the number of appointments is less than the total capacity.
-          return appointmentsAtTime.length < capacity;
+          const capacity = professionals.length > 0 ? professionals.length : 1;
+          const CHECK_INTERVAL = 15;
+
+          for (let t = slotStartMinutes; t < slotEndMinutes; t += CHECK_INTERVAL) {
+              const concurrentBookings = dailyAppointments.filter(apt => 
+                  t >= apt.startMinutes && t < apt.endMinutes
+              ).length;
+              
+              if (concurrentBookings >= capacity) {
+                  return false;
+              }
+          }
+          return true;
       }
     });
 
@@ -296,11 +345,10 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
 
   const renderServices = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 pb-24 max-w-2xl mx-auto">
-      <h2 className="text-xl font-bold text-c-text-primary dark:text-white col-span-full mb-2">Escolha o serviço</h2>
+      <h2 className="text-2xl font-bold text-c-text-primary dark:text-white col-span-full mb-2">Escolha o serviço</h2>
       
-      {/* Show pre-selected professional hint if exists */}
       {selectedProfessional && (
-        <div className="col-span-full bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 p-3 rounded-lg flex items-center gap-3 mb-2">
+        <div className="col-span-full bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 p-3 rounded-xl flex items-center gap-3 mb-2">
             <img src={selectedProfessional.avatar} alt={selectedProfessional.name} className="w-10 h-10 rounded-full object-cover"/>
             <div>
                 <p className="text-xs text-blue-600 dark:text-blue-300 font-bold uppercase">Profissional Selecionado</p>
@@ -313,26 +361,22 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
         <div 
           key={service.id}
           onClick={() => setSelectedService(service)}
-          className={`bg-white dark:bg-[#0a0a0a] p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md flex gap-4 ${
+          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-px flex flex-col justify-between ${
             selectedService?.id === service.id 
-              ? 'border-primary ring-1 ring-primary bg-orange-50 dark:bg-white/5' 
-              : 'border-transparent shadow-sm dark:border-white/5'
+              ? 'border-primary ring-2 ring-primary/50 bg-gray-700'
+              : 'bg-gray-800 border-gray-700'
           }`}
         >
-          <img src={service.image} alt={service.name} className="w-20 h-20 rounded-lg object-cover" />
-          <div className="flex-1 flex flex-col justify-between">
-            <div>
-              <h3 className="font-semibold text-c-list-title dark:text-white">{service.name}</h3>
-              <p className="text-xs text-c-list-info dark:text-gray-400 mt-1 line-clamp-2">{service.description}</p>
-            </div>
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-sm font-medium text-c-list-info dark:text-gray-400 flex items-center gap-1">
-                <Clock size={14} /> {service.duration} min
-              </span>
-              <span className="font-bold text-c-list-price">
-                {service.price > 0 ? `R$ ${service.price.toFixed(2)}` : 'A consultar'}
-              </span>
-            </div>
+          <div>
+            <h3 className="font-bold text-lg text-white">{service.name}</h3>
+          </div>
+          <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-600 text-sm">
+            <span className="font-medium text-gray-300 flex items-center gap-1.5">
+              <Clock size={14} /> {service.duration} min
+            </span>
+            <span className="font-bold text-lg text-primary">
+              {service.price > 0 ? `R$ ${service.price.toFixed(2)}` : 'VIP'}
+            </span>
           </div>
         </div>
       ))}
@@ -340,8 +384,6 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   );
 
   const renderDateTime = () => {
-    const { allSlots, availableSlots } = getAvailableAndAllSlots();
-
     const morningSlots = allSlots.filter(time => parseInt(time.split(':')[0], 10) < 12);
     const afternoonSlots = allSlots.filter(time => parseInt(time.split(':')[0], 10) >= 12 && parseInt(time.split(':')[0], 10) < 18);
     const eveningSlots = allSlots.filter(time => parseInt(time.split(':')[0], 10) >= 18);
@@ -570,8 +612,8 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
       <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-8 max-w-sm w-full text-left flex gap-3">
          <AlertCircle className="text-blue-500 flex-shrink-0" size={24} />
          <div className="text-sm text-blue-800 dark:text-blue-300">
-             <p className="font-bold mb-1">Verifique seu WhatsApp</p>
-             <p>A conversa com o estabelecimento deve ter sido aberta para o envio do comprovante. O profissional confirmará assim que receber.</p>
+            <p className="font-bold mb-1">Passo Final: Envie a Mensagem!</p>
+            <p>Abrimos o WhatsApp para você. <strong>Basta enviar a mensagem pré-pronta</strong> para solicitar seu horário. Se houver pagamento, envie o comprovante na mesma conversa para confirmar.</p>
          </div>
       </div>
       

@@ -1,35 +1,25 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { ViewState, Theme, BusinessProfile, Appointment, Professional, Service, AdminUser, Product, ClientPlan, ServiceCategory } from './types';
-import { AdminDashboard } from './components/AdminDashboard';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ViewState, Theme, BusinessProfile, Appointment, Professional, Service, Product, ClientPlan, ServiceCategory, AdminUser } from './types';
 import { LandingPage } from './components/LandingPage';
 import { BookingFlow } from './components/BookingFlow';
 import { AIReceptionist } from './components/AIReceptionist';
 import { AuthScreen } from './components/AuthScreen';
+import { AdminDashboard } from './components/AdminDashboard';
 import { SubscriptionScreen } from './components/SubscriptionScreen';
 import { db } from './services/db';
 import { DEFAULT_BUSINESS_HOURS } from './constants';
-
-// Interface para agrupar todos os dados salváveis
-interface AppData {
-  profile: BusinessProfile;
-  appointments: Appointment[];
-  professionals: Professional[];
-  services: Service[];
-  products: Product[];
-  clientPlans: ClientPlan[];
-}
+import { ArrowLeft } from 'lucide-react';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('AUTH');
   const [theme, setTheme] = useState<Theme>('light');
   
-  // Auth State
-  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  
-  // Store ID Management for Public Views
   const [publicStoreId, setPublicStoreId] = useState<string | null>(null);
+
+  // Admin State
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   // Booking State
   const [bookingDate, setBookingDate] = useState<Date | undefined>(undefined);
@@ -51,52 +41,121 @@ const App: React.FC = () => {
         textPrimary: '#111827', textSecondary: '#6b7280'
     }
   });
-  
-  // State to track unsaved changes
-  const [initialData, setInitialData] = useState<AppData | null>(null);
+
+  const loadAdminData = useCallback(async (userId: string) => {
+    const data = await db.loadData(userId);
+    setBusinessProfile(data.profile);
+    setAppointments(data.appointments || []);
+    setProfessionals(data.professionals || []);
+    setServices(data.services || []);
+    setProducts(data.products || []);
+    setClientPlans(data.clientPlans || []);
+    setCategories([]);
+    setIsDirty(false);
+  }, []);
 
   useEffect(() => {
     const initializeApp = async () => {
+      setIsDataLoaded(false);
       try {
         const params = new URLSearchParams(window.location.search);
         const storeIdFromUrl = params.get('store');
-        const professionalIdFromUrl = params.get('professionalId');
-
+        
         if (storeIdFromUrl) {
-          // Public client view flow
-          setView('LANDING');
+          // Public client view
           setPublicStoreId(storeIdFromUrl);
-          setCurrentUser(null);
           const data = await db.loadPublicData(storeIdFromUrl);
-
-          if (data) {
+          if (data && data.profile.name !== 'Loja não encontrada') {
             setBusinessProfile(data.profile);
             setAppointments(data.appointments || []);
             setProfessionals(data.professionals || []);
             setServices(data.services || []);
             setProducts(data.products || []);
             setClientPlans(data.clientPlans || []);
-            setCategories([]);
-
-            if (professionalIdFromUrl && data.professionals.some((p: Professional) => p.id === professionalIdFromUrl)) {
-              setPreSelectedProId(professionalIdFromUrl);
-              const tomorrow = new Date();
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              setBookingDate(tomorrow);
-              setView('BOOKING_FLOW');
+            setView('LANDING');
+          } else {
+             setBusinessProfile({ ...businessProfile, name: 'Loja não encontrada' });
+             setView('LANDING');
+          }
+        } else {
+          // Admin view
+          const adminUserId = localStorage.getItem('adminUserId');
+          if (adminUserId) {
+            const user = await db.getUserById(adminUserId);
+            if (user) {
+              setCurrentUser(user);
+              await loadAdminData(user.id);
+              if (user.subscription.status === 'expired') {
+                setView('SUBSCRIPTION');
+              } else {
+                setView('ADMIN');
+              }
+            } else {
+              setView('AUTH');
             }
+          } else {
+            setView('AUTH');
           }
         }
-        // If no storeIdFromUrl, the view remains 'AUTH' by default.
       } catch (error) {
         console.error("Failed to initialize app:", error);
+        setView('AUTH');
       } finally {
         setIsDataLoaded(true);
       }
     };
-
     initializeApp();
-  }, []);
+  }, [loadAdminData]);
+  
+  const handleLoginSuccess = async (user: AdminUser) => {
+    setCurrentUser(user);
+    localStorage.setItem('adminUserId', user.id);
+    await loadAdminData(user.id);
+    if (user.subscription.status === 'expired') {
+      setView('SUBSCRIPTION');
+    } else {
+      setView('ADMIN');
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('adminUserId');
+    setView('AUTH');
+  };
+
+  const handleSubscriptionUpdate = (updatedUser: AdminUser) => {
+    setCurrentUser(updatedUser);
+    if(updatedUser.subscription.status === 'active') {
+        setView('ADMIN');
+    }
+  };
+
+  const handleUpdateProfile = (profileUpdate: Partial<BusinessProfile>) => {
+    setBusinessProfile(prev => ({ ...prev, ...profileUpdate }));
+    setIsDirty(true);
+  };
+  
+  const createDirtySetter = <T,>(setter: React.Dispatch<React.SetStateAction<T>>) => {
+    return (value: React.SetStateAction<T>) => {
+      setter(value);
+      setIsDirty(true);
+    };
+  };
+
+  const handleSaveChanges = async () => {
+    if (currentUser && isDirty) {
+      await db.saveData(currentUser.id, {
+        profile: businessProfile,
+        appointments,
+        professionals,
+        services,
+        products,
+        clientPlans,
+      });
+      setIsDirty(false);
+    }
+  };
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -125,26 +184,6 @@ const App: React.FC = () => {
     }
   }, [businessProfile.colors, businessProfile.fontFamily, theme]);
 
-  const handleSaveChanges = async () => {
-    if (!currentUser || !isDataLoaded) return;
-    const currentData: AppData = {
-        profile: businessProfile, appointments, professionals,
-        services, products, clientPlans
-    };
-    await db.saveData(currentUser.id, currentData);
-    setInitialData(currentData); // Update baseline to new saved state
-  };
-  
-  const isDirty = useMemo(() => {
-      if (!initialData) return false;
-      const currentData: AppData = {
-          profile: businessProfile, appointments, professionals,
-          services, products, clientPlans
-      };
-      // Simple deep comparison
-      return JSON.stringify(initialData) !== JSON.stringify(currentData);
-  }, [initialData, businessProfile, appointments, professionals, services, products, clientPlans]);
-
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
@@ -155,100 +194,24 @@ const App: React.FC = () => {
   };
 
   const handleNewBooking = (newAppointment: Appointment) => {
-    setAppointments(prev => [...prev, newAppointment]);
-    if (!currentUser) {
-      const targetStoreId = publicStoreId;
-      if (!targetStoreId) {
-        console.error("Booking failed: No store ID found in URL.");
-        alert("Ocorreu um erro: não foi possível identificar a loja para o agendamento.");
-        return;
-      }
-      db.loadData(targetStoreId).then(async (storeData) => {
-        if (storeData) {
-          const updatedData = { ...storeData, appointments: [...(storeData.appointments || []), newAppointment] };
-          await db.saveData(targetStoreId, updatedData);
-        }
-      });
+    const updatedAppointments = [...appointments, newAppointment];
+    setAppointments(updatedAppointments);
+    const targetStoreId = publicStoreId || currentUser?.id;
+    if (!targetStoreId) {
+      console.error("Booking failed: No store ID found.");
+      alert("Ocorreu um erro: não foi possível identificar a loja.");
+      return;
     }
-  };
-
-  const updateProfile = (profile: Partial<BusinessProfile>) => {
-    setBusinessProfile(prev => ({ ...prev, ...profile }));
-  };
-  
-  // --- Navigation & Auth Handlers ---
-  const handleLoginSuccess = async (user: AdminUser) => {
-      setIsDataLoaded(false);
-      try {
-        const data = await db.loadData(user.id);
-        if (data) {
-           let safeProfile = data.profile;
-           if (typeof safeProfile.openingHours === 'string') {
-               safeProfile.openingHours = DEFAULT_BUSINESS_HOURS;
-           }
-           setBusinessProfile(safeProfile);
-           setAppointments(data.appointments || []);
-           setProfessionals(data.professionals || []);
-           setServices(data.services || []);
-           setProducts(data.products || []);
-           setClientPlans(data.clientPlans || []);
-           const initialSnapshot: AppData = {
-               profile: safeProfile, appointments: data.appointments || [],
-               professionals: data.professionals || [], services: data.services || [],
-               products: data.products || [], clientPlans: data.clientPlans || []
-           };
-           setInitialData(initialSnapshot);
-        }
-        setCurrentUser(user);
-        setView('ADMIN');
-      } catch (error) {
-        console.error("Failed to load user data:", error);
-        setCurrentUser(null);
-        setView('AUTH');
-      } finally {
-        setIsDataLoaded(true);
-      }
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setInitialData(null);
-    setBusinessProfile({
-      name: '', email: '', phone: '', logo: null, backgroundImage: null, pixKey: '',
-      whatsapp: '', address: '', openingHours: DEFAULT_BUSINESS_HOURS, notificationSound: true,
-      selectedSound: 'Padrão (Digital)', fontFamily: 'Inter', colors: {
-          primary: '#D4AF37', secondary: '#F3E5AB', background: '#f9fafb',
-          listTitle: '#111827', listPrice: '#D4AF37', listInfo: '#6b7280',
-          textPrimary: '#111827', textSecondary: '#6b7280'
-      }
+    db.saveData(targetStoreId, { 
+      profile: businessProfile, 
+      appointments: updatedAppointments, 
+      professionals, 
+      services,
+      products,
+      clientPlans
     });
-    setAppointments([]);
-    setProfessionals([]);
-    setServices([]);
-    setProducts([]);
-    setClientPlans([]);
-    setView('AUTH');
-    window.history.pushState({}, '', window.location.pathname);
-  };
-
-  const handleEnterAdmin = () => {
-    if (currentUser) {
-        setView('ADMIN');
-        setPublicStoreId(null);
-        window.history.pushState({}, '', window.location.pathname);
-    } else {
-        setView('AUTH');
-    }
   };
   
-  const handleViewMyStore = () => {
-    if (currentUser) {
-      setPublicStoreId(currentUser.id);
-      window.history.pushState({}, '', `?store=${currentUser.id}`);
-      setView('LANDING');
-    }
-  };
-
   const renderView = () => {
     if (!isDataLoaded) {
       return (
@@ -258,42 +221,35 @@ const App: React.FC = () => {
       );
     }
     
-    if (currentUser?.subscription?.status === 'expired') {
-        return <SubscriptionScreen user={currentUser} onSubscriptionUpdate={setCurrentUser} onLogout={handleLogout} />;
-    }
-
     switch(view) {
       case 'AUTH':
-        return (
-          <AuthScreen 
-            onLoginSuccess={handleLoginSuccess} 
-            toggleTheme={toggleTheme} 
-            currentTheme={theme} 
-          />
-        );
+        return <AuthScreen onLoginSuccess={handleLoginSuccess} toggleTheme={toggleTheme} currentTheme={theme} />;
+      case 'SUBSCRIPTION':
+        if (!currentUser) return <AuthScreen onLoginSuccess={handleLoginSuccess} toggleTheme={toggleTheme} currentTheme={theme} />;
+        return <SubscriptionScreen user={currentUser} onSubscriptionUpdate={handleSubscriptionUpdate} onLogout={handleLogout} />;
       case 'ADMIN':
         if (!currentUser) return <AuthScreen onLoginSuccess={handleLoginSuccess} toggleTheme={toggleTheme} currentTheme={theme} />;
         return (
           <AdminDashboard 
-            onViewMyStore={handleViewMyStore}
-            onViewAsClient={handleViewMyStore}
+            currentUser={currentUser}
+            onViewMyStore={() => window.open(businessProfile.schedulingUrl || `/?store=${currentUser.id}`, '_blank')}
+            onViewAsClient={() => setView('LANDING')}
             toggleTheme={toggleTheme}
             currentTheme={theme}
             businessProfile={businessProfile}
-            onUpdateProfile={updateProfile}
+            onUpdateProfile={handleUpdateProfile}
             appointments={appointments}
-            setAppointments={setAppointments}
+            setAppointments={createDirtySetter(setAppointments)}
             professionals={professionals}
-            setProfessionals={setProfessionals}
+            setProfessionals={createDirtySetter(setProfessionals)}
             services={services}
-            setServices={setServices}
+            setServices={createDirtySetter(setServices)}
             products={products}
-            setProducts={setProducts}
+            setProducts={createDirtySetter(setProducts)}
             clientPlans={clientPlans}
-            setClientPlans={setClientPlans}
+            setClientPlans={createDirtySetter(setClientPlans)}
             categories={categories}
-            setCategories={setCategories}
-            currentUser={currentUser}
+            setCategories={createDirtySetter(setCategories)}
             onSaveChanges={handleSaveChanges}
             isDirty={isDirty}
             onLogout={handleLogout}
@@ -316,16 +272,12 @@ const App: React.FC = () => {
         );
       case 'LANDING':
       default:
-        const isPublicClientView = !currentUser && !!publicStoreId;
         return (
           <LandingPage 
             onStartBooking={handleStartBooking}
-            onGoToAdmin={handleEnterAdmin}
             toggleTheme={toggleTheme}
             currentTheme={theme}
             businessProfile={businessProfile}
-            isLoggedIn={!!currentUser}
-            isPublicView={isPublicClientView}
           />
         );
     }
@@ -334,12 +286,26 @@ const App: React.FC = () => {
   return (
     <>
       {renderView()}
-      {view !== 'ADMIN' && view !== 'AUTH' && (
+      
+      {/* Show AI Assistant only in client views and if store exists */}
+      {(view === 'LANDING' || view === 'BOOKING_FLOW') && businessProfile.name !== 'Loja não encontrada' && (
         <AIReceptionist 
           businessProfile={businessProfile}
           services={services}
           professionals={professionals}
         />
+      )}
+
+      {/* "Back to Admin" button for admins viewing their client page */}
+      {view === 'LANDING' && currentUser && !publicStoreId && (
+         <button
+          onClick={() => setView('ADMIN')}
+          className="fixed bottom-4 left-4 bg-primary text-white px-4 py-2 rounded-full shadow-lg hover:bg-primary-hover transition-all z-50 flex items-center gap-2 text-sm font-bold"
+          aria-label="Voltar ao Painel"
+        >
+          <ArrowLeft size={16} />
+          Voltar ao Painel
+        </button>
       )}
     </>
   );

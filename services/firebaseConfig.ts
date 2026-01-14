@@ -2,10 +2,12 @@
 // Estes valores devem ser configurados como variáveis de ambiente no seu provedor de hospedagem (ex: Vercel).
 
 export const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
+  apiKey: "AIzaSyBnH4Kc3hrVakO6spzLjjQVaKIuP1X30yc",
+  authDomain: "teste-agendecerto.firebaseapp.com",
+  databaseURL: "https://teste-agendecerto-default-rtdb.firebaseio.com",
+  projectId: "teste-agendecerto",
+  storageBucket: "teste-agendecerto.firebasestorage.app",
+  messagingSenderId: "32913358656",
+  appId: "1:32913358656:web:a88892ac453d6067f404a5",
+  measurementId: "G-HJMCC3H4LP"
 };

@@ -5,10 +5,10 @@ import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, w
 
 // Default Profile Template (Premium Gold Theme)
 const DEFAULT_PROFILE: BusinessProfile = {
-  name: 'Barbearia Ton barber',
+  name: 'AgendeCerto Barbearia',
   email: 'contato@exemplo.com',
   phone: '(00) 0000-0000',
-  logo: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAIAAgADASIAAhEBAxEB/8QAGwABAAMBAQEBAAAAAAAAAAAAAAECBAMFBgf/xABHEAACAQMCBAMFBwIEBAMGBwAAAQIDERIhBAUxQVEGYXGBIhMykaGxwfBCUnLR4RQVIzOCFiQ0U2KSFzRzorLC8XWEk6PT/8QAGAEBAQEBAQAAAAAAAAAAAAAAAAECAwT/xAAgEQEBAQEAAwEAAwEBAAAAAAAAAQIREhMhMQNBUQQi/9oADAMBAAIRAxEAPwD+SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAACgAAAAAAAAAKAAAAAAAAAAAAAAAKAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAKAAAAAAAAAAAAAAAoAAAAAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//2Q==',
+  logo: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJjM2U1MCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiMxMTE4MjciLz48cGF0aCBkPSJNMTYuNSAzLjVhMi4xMiAyLjEyIDAgMCAxIDMgM0w3IDE5bC00LTRICTYuNSAzLjV6IiBmaWxsPSIjZjVhNjIzIiBzdHJva2U9IiNmNWE2MjMiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9ImTE1IDUgMyAzIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMS41Ii8+PHBhdGggZD0iTTMgMjFsNC00IiBzdHJva2U9IiNmNWE2MjMiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==',
   backgroundImage: null,
   pixKey: '71986073552',
   whatsapp: '71986073552',
@@ -19,11 +19,11 @@ const DEFAULT_PROFILE: BusinessProfile = {
   selectedSound: 'Padrão (Digital)',
   fontFamily: 'Inter',
   colors: {
-      primary: '#D4AF37',
+      primary: '#f5a623',
       secondary: '#F3E5AB',
       background: '#f9fafb',
       listTitle: '#111827',
-      listPrice: '#D4AF37',
+      listPrice: '#f5a623',
       listInfo: '#6b7280',
       textPrimary: '#111827',
       textSecondary: '#6b7280'
@@ -50,9 +50,12 @@ export const db = {
     const { firestore } = getFirebase();
     await this.delay(800);
     
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) throw new Error("O e-mail é obrigatório.");
+
     // Verifica se o email já existe
     const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", email));
+    const q = query(usersRef, where("email", "==", normalizedEmail));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
       throw new Error("E-mail já cadastrado.");
@@ -66,9 +69,9 @@ export const db = {
 
     const newUser: AdminUser = {
       id: newUserId,
-      name,
-      email,
-      businessName,
+      name: name.trim(),
+      email: normalizedEmail,
+      businessName: businessName.trim(),
       subscription: {
         plan: 'trial',
         status: 'active',
@@ -85,8 +88,8 @@ export const db = {
     await this.saveData(newUser.id, {
       profile: { 
         ...DEFAULT_PROFILE, 
-        name: businessName, 
-        email: email,
+        name: businessName.trim(), 
+        email: normalizedEmail,
         schedulingUrl: schedulingUrl
       },
       appointments: [],
@@ -102,9 +105,12 @@ export const db = {
   async login(email: string, password: string): Promise<AdminUser> {
     const { firestore } = getFirebase();
     await this.delay(800);
+    
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) throw new Error("O e-mail é obrigatório.");
 
     const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", email));
+    const q = query(usersRef, where("email", "==", normalizedEmail));
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
@@ -167,8 +173,11 @@ export const db = {
     const { firestore } = getFirebase();
     await this.delay(1000);
     
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) throw new Error("O e-mail é obrigatório.");
+
     const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", email));
+    const q = query(usersRef, where("email", "==", normalizedEmail));
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
@@ -184,7 +193,7 @@ export const db = {
     }
 
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    recoveryCodes.set(email, code);
+    recoveryCodes.set(normalizedEmail, code);
 
     const maskedPhone = phone.replace(/.(?=.{4})/g, '*');
 
@@ -198,12 +207,15 @@ export const db = {
       const { firestore } = getFirebase();
       await this.delay(1000);
       
-      if (recoveryCodes.get(email) !== code) {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail) throw new Error("O e-mail é obrigatório.");
+      
+      if (recoveryCodes.get(normalizedEmail) !== code) {
           throw new Error("Código inválido ou expirado.");
       }
 
       const usersRef = collection(firestore, "users");
-      const q = query(usersRef, where("email", "==", email));
+      const q = query(usersRef, where("email", "==", normalizedEmail));
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
@@ -215,7 +227,7 @@ export const db = {
       userData.password = newPassword;
       await setDoc(userDoc.ref, userData);
       
-      recoveryCodes.delete(email);
+      recoveryCodes.delete(normalizedEmail);
   },
 
   async renewSubscription(userId: string, plan: PlanType): Promise<AdminUser> {

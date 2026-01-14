@@ -10,7 +10,6 @@ export const SERVICES: Service[] = [
     price: 27.00,
     duration: 30,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1621605815971-fbc3330058da?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '2',
@@ -19,7 +18,6 @@ export const SERVICES: Service[] = [
     price: 25.00,
     duration: 50,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1622288399328-5e4a07010a30?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '3',
@@ -28,7 +26,6 @@ export const SERVICES: Service[] = [
     price: 15.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1615182582998-3850785f768b?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '4',
@@ -37,7 +34,6 @@ export const SERVICES: Service[] = [
     price: 35.00,
     duration: 30,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1599351548092-93c6918804c8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '5',
@@ -45,7 +41,6 @@ export const SERVICES: Service[] = [
     description: 'Uma experiência completa com tratamento especial. Preço a consultar.',
     price: 0,
     duration: 30,
-    image: 'https://images.unsplash.com/photo-1583241801238-a583c480a84b?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '6',
@@ -54,7 +49,6 @@ export const SERVICES: Service[] = [
     price: 35.00,
     duration: 45,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1634472645118-a85c829a239a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '7',
@@ -63,7 +57,6 @@ export const SERVICES: Service[] = [
     price: 30.00,
     duration: 30,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1605497788018-8734341902c9?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '8',
@@ -72,7 +65,6 @@ export const SERVICES: Service[] = [
     price: 50.00,
     duration: 45,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1634472645096-7788a101217e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '9',
@@ -81,7 +73,6 @@ export const SERVICES: Service[] = [
     price: 20.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1603233489397-1521d9c1356f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '10',
@@ -90,7 +81,6 @@ export const SERVICES: Service[] = [
     price: 22.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1565862214952-f09230537042?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '11',
@@ -99,7 +89,6 @@ export const SERVICES: Service[] = [
     price: 35.00,
     duration: 30,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1622979205933-485a3c613134?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '12',
@@ -108,7 +97,6 @@ export const SERVICES: Service[] = [
     price: 20.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1634472645096-7788a101217e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
    {
     id: '15',
@@ -117,7 +105,6 @@ export const SERVICES: Service[] = [
     price: 20.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1634472645096-7788a101217e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '13',
@@ -126,7 +113,6 @@ export const SERVICES: Service[] = [
     price: 15.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1622979205933-485a3c613134?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '14',
@@ -135,7 +121,6 @@ export const SERVICES: Service[] = [
     price: 13.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1599351548092-93c6918804c8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '16',
@@ -144,7 +129,6 @@ export const SERVICES: Service[] = [
     price: 20.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1634472645096-7788a101217e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '17',
@@ -153,7 +137,6 @@ export const SERVICES: Service[] = [
     price: 15.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1622979205933-485a3c613134?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   },
   {
     id: '18',
@@ -162,7 +145,6 @@ export const SERVICES: Service[] = [
     price: 13.00,
     duration: 20,
     deposit: 5.00,
-    image: 'https://images.unsplash.com/photo-1599351548092-93c6918804c8?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&q=80'
   }
 ];
 
