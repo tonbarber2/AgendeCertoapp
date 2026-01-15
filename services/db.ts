@@ -1,7 +1,5 @@
 import { AdminUser, Appointment, BusinessProfile, Professional, Service, PlanType, Product, ClientPlan } from "../types";
 import { SERVICES as DEFAULT_SERVICES, PROFESSIONALS as DEFAULT_PROFESSIONALS, DEFAULT_BUSINESS_HOURS } from "../constants";
-import { getFirebase } from './firebase';
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
 
 // Default Profile Template (Premium Gold Theme)
 const DEFAULT_PROFILE: BusinessProfile = {
@@ -42,22 +40,37 @@ interface AppData {
 // Armazenamento temporário de códigos de recuperação (em memória)
 const recoveryCodes = new Map<string, string>();
 
+// --- Helpers para LocalStorage ---
+const USERS_KEY = 'agende-certo-users';
+const STORE_KEY_PREFIX = 'agende-certo-store-';
+
+const getUsers = (): (AdminUser & { password?: string })[] => {
+  try {
+    const usersJson = localStorage.getItem(USERS_KEY);
+    return usersJson ? JSON.parse(usersJson) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const saveUsers = (users: (AdminUser & { password?: string })[]) => {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+};
+// --- Fim Helpers ---
+
+
 export const db = {
   
   // --- Auth Methods ---
 
   async register(name: string, email: string, password: string, businessName: string): Promise<AdminUser> {
-    const { firestore } = getFirebase();
     await this.delay(800);
     
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) throw new Error("O e-mail é obrigatório.");
 
-    // Verifica se o email já existe
-    const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", normalizedEmail));
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
+    const users = getUsers();
+    if (users.some(u => u.email === normalizedEmail)) {
       throw new Error("E-mail já cadastrado.");
     }
     
@@ -81,7 +94,8 @@ export const db = {
     };
     
     const userWithPassword = { ...newUser, password };
-    await setDoc(doc(firestore, "users", newUser.id), userWithPassword);
+    users.push(userWithPassword);
+    saveUsers(users);
 
     const schedulingUrl = `${window.location.origin}?store=${newUser.id}`;
 
@@ -103,24 +117,15 @@ export const db = {
   },
 
   async login(email: string, password: string): Promise<AdminUser> {
-    const { firestore } = getFirebase();
     await this.delay(800);
     
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) throw new Error("O e-mail é obrigatório.");
 
-    const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", normalizedEmail));
-    const querySnapshot = await getDocs(q);
+    const users = getUsers();
+    let user = users.find(u => u.email === normalizedEmail);
     
-    if (querySnapshot.empty) {
-      throw new Error("Credenciais inválidas.");
-    }
-
-    const userDoc = querySnapshot.docs[0];
-    let user = userDoc.data() as AdminUser & { password?: string };
-
-    if (user.password !== password) {
+    if (!user || user.password !== password) {
       throw new Error("Credenciais inválidas.");
     }
     
@@ -142,48 +147,43 @@ export const db = {
     }
     
     if(needsUpdate) {
-        await setDoc(doc(firestore, "users", user.id), user);
+        saveUsers(users);
     }
     
-    delete user.password;
-    return user;
+    const { password: _, ...userToReturn } = user;
+    return userToReturn;
   },
   
   async getUserById(userId: string): Promise<AdminUser | null> {
-    const { firestore } = getFirebase();
-    const userDocRef = doc(firestore, "users", userId);
-    const userDoc = await getDoc(userDocRef);
+    const users = getUsers();
+    const user = users.find(u => u.id === userId);
 
-    if (userDoc.exists()) {
-      const user = userDoc.data() as AdminUser & { password?: string };
+    if (user) {
       if (user.subscription && user.subscription.plan !== 'lifetime' && user.subscription.expiresAt) {
           const expiryDate = new Date(user.subscription.expiresAt);
           if (new Date() > expiryDate && user.subscription.status !== 'expired') {
               user.subscription.status = 'expired';
-              await setDoc(userDocRef, user);
+              saveUsers(users);
           }
       }
-      delete user.password;
-      return user;
+      const { password, ...userToReturn } = user;
+      return userToReturn;
     }
     return null;
   },
 
   async requestPasswordReset(email: string): Promise<string> {
-    const { firestore } = getFirebase();
     await this.delay(1000);
     
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) throw new Error("O e-mail é obrigatório.");
 
-    const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", normalizedEmail));
-    const querySnapshot = await getDocs(q);
+    const users = getUsers();
+    const user = users.find(u => u.email === normalizedEmail);
     
-    if (querySnapshot.empty) {
+    if (!user) {
         throw new Error("Usuário não encontrado.");
     }
-    const user = querySnapshot.docs[0].data();
     
     const storeData = await this.loadData(user.id);
     const phone = storeData.profile?.whatsapp || storeData.profile?.phone || "";
@@ -204,7 +204,6 @@ export const db = {
   },
 
   async confirmPasswordReset(email: string, code: string, newPassword: string): Promise<void> {
-      const { firestore } = getFirebase();
       await this.delay(1000);
       
       const normalizedEmail = email.trim().toLowerCase();
@@ -214,29 +213,25 @@ export const db = {
           throw new Error("Código inválido ou expirado.");
       }
 
-      const usersRef = collection(firestore, "users");
-      const q = query(usersRef, where("email", "==", normalizedEmail));
-      const querySnapshot = await getDocs(q);
+      const users = getUsers();
+      const userIndex = users.findIndex(u => u.email === normalizedEmail);
 
-      if (querySnapshot.empty) {
+      if (userIndex === -1) {
           throw new Error("Usuário não encontrado.");
       }
       
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-      userData.password = newPassword;
-      await setDoc(userDoc.ref, userData);
+      users[userIndex].password = newPassword;
+      saveUsers(users);
       
       recoveryCodes.delete(normalizedEmail);
   },
 
   async renewSubscription(userId: string, plan: PlanType): Promise<AdminUser> {
-      const { firestore } = getFirebase();
       await this.delay(1000);
-      const userDocRef = doc(firestore, "users", userId);
-      const userDoc = await getDoc(userDocRef);
+      const users = getUsers();
+      const userIndex = users.findIndex(u => u.id === userId);
       
-      if (!userDoc.exists()) throw new Error("Usuário não encontrado.");
+      if (userIndex === -1) throw new Error("Usuário não encontrado.");
 
       const now = new Date();
       const newExpiration = new Date();
@@ -245,29 +240,27 @@ export const db = {
       else if (plan === 'semiannual') newExpiration.setDate(now.getDate() + 180);
       else if (plan === 'annual') newExpiration.setDate(now.getDate() + 365);
       
-      const user = userDoc.data() as AdminUser & { password?: string };
+      const user = users[userIndex];
       user.subscription = {
           plan: plan,
           status: 'active',
           startDate: now.toISOString(),
           expiresAt: newExpiration.toISOString()
       };
+      
+      saveUsers(users);
 
-      await setDoc(userDocRef, user);
-
-      delete user.password;
-      return user;
+      const { password, ...userToReturn } = user;
+      return userToReturn;
   },
 
   // --- Data Methods (Sync) ---
 
   async loadData(userId: string): Promise<AppData> {
-    const { firestore } = getFirebase();
     await this.delay(500);
-    const docRef = doc(firestore, "stores", userId);
-    const docSnap = await getDoc(docRef);
+    const storeJson = localStorage.getItem(`${STORE_KEY_PREFIX}${userId}`);
     
-    if (!docSnap.exists()) {
+    if (!storeJson) {
       return {
         profile: DEFAULT_PROFILE,
         appointments: [],
@@ -277,13 +270,11 @@ export const db = {
         clientPlans: []
       };
     }
-    return this.normalizeData(docSnap.data());
+    return this.normalizeData(JSON.parse(storeJson));
   },
 
   async saveData(userId: string, data: AppData): Promise<void> {
-    const { firestore } = getFirebase();
-    const docRef = doc(firestore, "stores", userId);
-    await setDoc(docRef, data);
+    localStorage.setItem(`${STORE_KEY_PREFIX}${userId}`, JSON.stringify(data));
   },
 
   normalizeData(data: any): AppData {
@@ -299,11 +290,9 @@ export const db = {
   },
 
   async loadPublicData(storeId?: string | null): Promise<AppData> {
-    const { firestore } = getFirebase();
     if (!storeId) {
-      // Se não houver storeId, retorna dados padrão para evitar erros.
       return {
-        profile: DEFAULT_PROFILE,
+        profile: { ...DEFAULT_PROFILE, name: 'Loja não encontrada' },
         appointments: [],
         professionals: [],
         services: [],
@@ -312,15 +301,13 @@ export const db = {
       };
     }
     
-    // Carrega os dados da loja pública com base no storeId
-    const usersRef = collection(firestore, "users");
-    const userDoc = await getDoc(doc(usersRef, storeId));
+    const users = getUsers();
+    const user = users.find(u => u.id === storeId);
     
-    if (userDoc.exists()) {
-      return this.loadData(userDoc.id);
+    if (user) {
+      return this.loadData(user.id);
     }
     
-    // Retorna um estado vazio e seguro se a loja não for encontrada
     return {
       profile: { ...DEFAULT_PROFILE, name: 'Loja não encontrada' },
       appointments: [],
